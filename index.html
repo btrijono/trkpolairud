@@ -69,34 +69,7 @@ var jlg = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     var overlayMaps = {};
     var userMarker = null;
 
-    // Load Shapefile menggunakan shp.js
-    shp("LICENSESHP/background/jlg_planted.zip").then(function (geojson) {
-        var shpLayer = L.geoJSON(geojson, {
-            style: function (feature) {
-                return {
-                    color: "#008000",
-                    weight: 2,
-                    fillColor: "#00FF00",
-                    fillOpacity: 0.2
-                };
-            },
-            onEachFeature: function (feature, layer) {
-                if (feature.properties) {
-                    layer.bindPopup(Object.keys(feature.properties).map(function (k) {
-                        return k + ": " + feature.properties[k];
-                    }).join("<br />"));
-                }
-            }
-        }).addTo(map);
-        
-        overlayMaps["Planted"] = shpLayer;
-        map.fitBounds(shpLayer.getBounds());
-
-        L.control.layers(baseMaps, overlayMaps).addTo(map);
-    }).catch(function (error) {
-        console.error("Error loading Shapefile:", error);
-        alert("Gagal memuat Shapefile. Pastikan file jlg_planted.zip ada di folder LICENSESHP/background/");
-    });
+   
 
     // Handle coordinate search
     document.getElementById("search-form").addEventListener("submit", function (event) {
