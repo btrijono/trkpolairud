@@ -55,7 +55,7 @@
         maxZoom: 20
     });    
     
-    // Julong Map Tile Layer (diubah ke HTTPS jika tersedia)
+    // Julong Map Tile Layer
     var jlg = L.tileLayer('https://gis.julongindonesia.com:8082/jlg2023/{z}/{x}/{y}.png', {
         attribution: 'Map data &copy; Julong Indonesia',
         maxZoom: 20
@@ -68,17 +68,17 @@
     };
     
     var overlayMaps = {};
+    var userMarker = null;
 
     // Load Shapefile menggunakan shp.js
-    // Pastikan file ZIP shapefile ada di repository
     shp("LICENSESHP/background/jlg_planted.zip").then(function (geojson) {
         var shpLayer = L.geoJSON(geojson, {
             style: function (feature) {
                 return {
-                    color: "#008000", // Warna garis tepi (outline) hijau
-                    weight: 2,        // Ketebalan garis
-                    fillColor: "#00FF00", // Warna isi hijau terang
-                    fillOpacity: 0.2  // Transparansi warna isi
+                    color: "#008000",
+                    weight: 2,
+                    fillColor: "#00FF00",
+                    fillOpacity: 0.2
                 };
             },
             onEachFeature: function (feature, layer) {
@@ -100,12 +100,12 @@
     });
 
     // Handle coordinate search
-    var userMarker = null;
     document.getElementById("search-form").addEventListener("submit", function (event) {
         event.preventDefault();
 
         var input = document.getElementById("coordinates").value.trim();
         var regex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
+        
         if (!regex.test(input)) {
             alert("Format tidak valid! Gunakan format: Latitude, Longitude (contoh: -0.7893, 113.9213)");
             return;
