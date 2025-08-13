@@ -78,40 +78,19 @@
 <div id="map"></div>
 
 <script>
-      // Daftar basemap
-    const baseLayers = {
-        "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }),
-        "Esri World Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri'
-        }),
-        "Google Streets": L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-            attribution: 'Google'
-        }),
-        "Google Satellite": L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-            attribution: 'Google'
-        }),
-        "Carto Light": L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; Carto'
-        }),
-        "Carto Dark": L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; Carto'
-        })
-    };
+    var map, pointsLayer = L.layerGroup(), pointsList = [];
 
-    // Inisialisasi peta
-    const map = L.map('map', {
-        center: [-2.5489, 118.0149],
-        zoom: 5,
-        layers: [baseLayers["OpenStreetMap"]]
-    });
+    document.addEventListener('DOMContentLoaded', function() {
+        map = L.map('map').setView([-0.7893, 113.9213], 8);
 
-    // Layer control
-    L.control.layers(baseLayers).addTo(map);
+        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+        }).addTo(map);
 
-    let points = [];
-    let pointCounter = 1;
+        var googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            attribution: 'Google Satellite', maxZoom: 20
+        });
+
         L.control.layers({ "OpenStreetMap": osm, "Google Satellite": googleSat }).addTo(map);
         pointsLayer.addTo(map);
 
@@ -285,3 +264,4 @@
 </script>
 </body>
 </html>
+
