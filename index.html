@@ -90,8 +90,11 @@
         var googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
             attribution: 'Google Satellite', maxZoom: 20
         });
+         var GoogleStreets: L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            attribution: 'Google Street', maxZoom: 20
+        }),
 
-        L.control.layers({ "OpenStreetMap": osm, "Google Satellite": googleSat }).addTo(map);
+        L.control.layers({ "OpenStreetMap": osm, "Google Satellite": googleSat, "Google Street": GoogleStreets }).addTo(map);
         pointsLayer.addTo(map);
 
         map.on('click', function(e) {
