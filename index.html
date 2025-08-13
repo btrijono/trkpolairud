@@ -1,228 +1,116 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <title>Leaflet - Plot Titik dengan Ekspor/Impor</title>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Map Julong</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .control-panel {
-            position: absolute; top: 10px; left: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px; z-index: 1000;
-            border: 1px solid #ccc; border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
-            width: 300px; max-height: 90vh; overflow-y: auto;
+        #map { height: 100vh; }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 6px rgba(0,0,0,0.3);
         }
-        h3 { margin: 0 0 10px 0; }
-        input, button, select {
-            width: 100%; padding: 8px; margin-bottom: 8px; box-sizing: border-box;
-        }
-        button {
-            background: #0078A8; color: white; border: none; border-radius: 3px; cursor: pointer;
-        }
-        button:hover { background: #005f87; }
-        .coord-input { display: flex; gap: 5px; }
-        .coord-input input { flex: 1; }
-        .points-list {
-            margin-top: 10px; max-height: 200px; overflow-y: auto;
-        }
-        .point-item {
-            padding: 5px; border-bottom: 1px solid #eee; cursor: pointer;
-        }
-        .point-item:hover { background: #f5f5f5; }
-        .custom-marker {
-            width: 24px; height: 24px;
-            background: rgba(255,255,255,0.8);
-            border: 2px solid #0078A8;
-            border-radius: 50%;
-            text-align: center;
-            line-height: 20px;
+        .plus-marker {
+            font-size: 20px;
             font-weight: bold;
-            color: #0078A8;
-            font-size: 16px;
+            color: red;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
-<div class="control-panel">
-    <h3>Plotting Titik</h3>
-    <input type="text" id="point-name" placeholder="Nama Titik">
-    <div class="coord-input">
-        <input type="number" id="plot-lat-deg" placeholder="Lat °" min="-90" max="90" step="any">
-        <input type="number" id="plot-lat-min" placeholder="Lat '" min="0" max="59" step="any">
-        <input type="number" id="plot-lat-sec" placeholder="Lat &quot;" min="0" max="59" step="any">
-    </div>
-    <div class="coord-input">
-        <input type="number" id="plot-lon-deg" placeholder="Lon °" min="-180" max="180" step="any">
-        <input type="number" id="plot-lon-min" placeholder="Lon '" min="0" max="59" step="any">
-        <input type="number" id="plot-lon-sec" placeholder="Lon &quot;" min="0" max="59" step="any">
-    </div>
-    <select id="plot-direction">
-        <option value="N,E">Utara, Timur</option>
-        <option value="S,E">Selatan, Timur</option>
-        <option value="N,W">Utara, Barat</option>
-        <option value="S,W">Selatan, Barat</option>
-    </select>
-    <button id="add-point">Tambah Titik</button>
-    <button id="clear-points">Hapus Semua</button>
-    <button id="export-json">Ekspor JSON</button>
-    <input type="file" id="import-json" accept=".json">
-    <div class="points-list" id="points-list"></div>
+<div class="controls">
+    <button onclick="exportPoints()">Ekspor JSON</button>
+    <input type="file" id="importFile" onchange="importPoints()">
 </div>
-
 <div id="map"></div>
 
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-    var map, pointsLayer = L.layerGroup(), pointsList = [];
+    // Daftar basemap
+    const baseLayers = {
+        "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }),
+        "Esri World Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
+        }),
+        "Google Streets": L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            attribution: 'Google'
+        }),
+        "Google Satellite": L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            attribution: 'Google'
+        }),
+        "Carto Light": L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; Carto'
+        }),
+        "Carto Dark": L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; Carto'
+        })
+    };
 
-    document.addEventListener('DOMContentLoaded', function() {
-        map = L.map('map').setView([-0.7893, 113.9213], 8);
-
-        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
-        }).addTo(map);
-
-        var googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-            attribution: 'Google Satellite', maxZoom: 20
-        });
-
-        L.control.layers({ "OpenStreetMap": osm, "Google Satellite": googleSat }).addTo(map);
-        pointsLayer.addTo(map);
-
-        map.on('click', function(e) {
-            var lat = e.latlng.lat;
-            var lng = e.latlng.lng;
-            var dms = convertDDToDMS(lat, lng);
-
-            document.getElementById('plot-lat-deg').value = dms.latDeg;
-            document.getElementById('plot-lat-min').value = dms.latMin;
-            document.getElementById('plot-lat-sec').value = dms.latSec;
-            document.getElementById('plot-lon-deg').value = dms.lonDeg;
-            document.getElementById('plot-lon-min').value = dms.lonMin;
-            document.getElementById('plot-lon-sec').value = dms.lonSec;
-
-            var latDir = lat >= 0 ? 'N' : 'S';
-            var lonDir = lng >= 0 ? 'E' : 'W';
-            document.getElementById('plot-direction').value = latDir + ',' + lonDir;
-        });
-
-        document.getElementById("add-point").addEventListener("click", addPoint);
-        document.getElementById("clear-points").addEventListener("click", clearPoints);
-        document.getElementById("export-json").addEventListener("click", exportPoints);
-        document.getElementById("import-json").addEventListener("change", importPoints);
+    // Inisialisasi peta
+    const map = L.map('map', {
+        center: [-2.5489, 118.0149],
+        zoom: 5,
+        layers: [baseLayers["OpenStreetMap"]]
     });
 
-    function convertDMSToDD(deg, min, sec, direction) {
-        let dd = parseFloat(deg) + parseFloat(min)/60 + parseFloat(sec)/3600;
-        if (direction === 'S' || direction === 'W') dd = -dd;
-        return dd;
-    }
+    // Layer control
+    L.control.layers(baseLayers).addTo(map);
 
-    function convertDDToDMS(lat, lng) {
-        const latAbs = Math.abs(lat);
-        const latDeg = Math.floor(latAbs);
-        const latMin = Math.floor((latAbs - latDeg) * 60);
-        const latSec = ((latAbs - latDeg - latMin/60) * 3600).toFixed(2);
+    let points = [];
+    let pointCounter = 1;
 
-        const lngAbs = Math.abs(lng);
-        const lngDeg = Math.floor(lngAbs);
-        const lngMin = Math.floor((lngAbs - lngDeg) * 60);
-        const lngSec = ((lngAbs - lngDeg - lngMin/60) * 3600).toFixed(2);
-
-        return { latDeg, latMin, latSec, lonDeg: lngDeg, lonMin: lngMin, lonSec: lngSec };
-    }
-
-    function createCustomMarker(label) {
-        return L.divIcon({
-            className: 'custom-marker',
+    // Fungsi membuat marker plus dan lingkaran
+    function createCustomMarker(lat, lng, label) {
+        const plusIcon = L.divIcon({
+            className: 'plus-marker',
             html: '+',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
         });
+
+        const marker = L.marker([lat, lng], { icon: plusIcon }).addTo(map);
+        const circle = L.circleMarker([lat, lng], {
+            radius: 12,
+            color: 'blue',
+            fill: false,
+            weight: 2
+        }).addTo(map);
+
+        const labelText = L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'text-label',
+                html: `<div style="color:black;font-weight:bold;background:white;padding:1px 3px;border-radius:3px;border:1px solid gray;">${label}</div>`,
+                iconSize: [30, 15],
+                iconAnchor: [15, -10]
+            }),
+            interactive: false
+        }).addTo(map);
+
+        return { marker, circle, labelText };
     }
 
-    function addPoint() {
-        const name = document.getElementById('point-name').value.trim();
-        const latDeg = parseFloat(document.getElementById('plot-lat-deg').value) || 0;
-        const latMin = parseFloat(document.getElementById('plot-lat-min').value) || 0;
-        const latSec = parseFloat(document.getElementById('plot-lat-sec').value) || 0;
-        const lonDeg = parseFloat(document.getElementById('plot-lon-deg').value) || 0;
-        const lonMin = parseFloat(document.getElementById('plot-lon-min').value) || 0;
-        const lonSec = parseFloat(document.getElementById('plot-lon-sec').value) || 0;
-        const direction = document.getElementById('plot-direction').value.split(',');
+    // Klik di peta untuk menambah titik
+    map.on('click', function(e) {
+        const { lat, lng } = e.latlng;
+        createCustomMarker(lat, lng, pointCounter);
+        points.push({ id: pointCounter, lat, lng });
+        pointCounter++;
+    });
 
-        if (!name) {
-            alert("Nama titik harus diisi!");
-            return;
-        }
-
-        const lat = convertDMSToDD(latDeg, latMin, latSec, direction[0]);
-        const lng = convertDMSToDD(lonDeg, lonMin, lonSec, direction[1]);
-
-        if (isNaN(lat) || isNaN(lng)) {
-            alert("Koordinat tidak valid!");
-            return;
-        }
-
-        const marker = L.marker([lat, lng], { icon: createCustomMarker(pointsList.length + 1) }).addTo(pointsLayer);
-        const dms = convertDDToDMS(lat, lng);
-        const latDir = lat >= 0 ? 'N' : 'S';
-        const lonDir = lng >= 0 ? 'E' : 'W';
-
-        marker.bindPopup(`
-            <b>${pointsList.length + 1}. ${name}</b><br>
-            Latitude: ${dms.latDeg}°${dms.latMin}'${dms.latSec}"${latDir}<br>
-            Longitude: ${dms.lonDeg}°${dms.lonMin}'${dms.lonSec}"${lonDir}<br>
-            Desimal: ${lat.toFixed(6)}, ${lng.toFixed(6)}
-        `);
-
-        pointsList.push({ name, lat, lng });
-        updatePointsList();
-        document.getElementById('point-name').value = '';
-    }
-
-    function clearPoints() {
-        pointsLayer.clearLayers();
-        pointsList = [];
-        updatePointsList();
-    }
-
-    function updatePointsList() {
-        const listContainer = document.getElementById('points-list');
-        listContainer.innerHTML = '';
-
-        if (pointsList.length === 0) {
-            listContainer.innerHTML = '<p>Tidak ada titik</p>';
-            return;
-        }
-
-        pointsList.forEach((point, index) => {
-            const dms = convertDDToDMS(point.lat, point.lng);
-            const latDir = point.lat >= 0 ? 'N' : 'S';
-            const lonDir = point.lng >= 0 ? 'E' : 'W';
-
-            const pointElement = document.createElement('div');
-            pointElement.className = 'point-item';
-            pointElement.innerHTML = `
-                <strong>${index + 1}. ${point.name}</strong><br>
-                ${dms.latDeg}°${dms.latMin}'${dms.latSec}"${latDir}, 
-                ${dms.lonDeg}°${dms.lonMin}'${dms.lonSec}"${lonDir}
-            `;
-            pointElement.addEventListener('click', () => {
-                map.setView([point.lat, point.lng], 16);
-            });
-
-            listContainer.appendChild(pointElement);
-        });
-    }
-
+    // Ekspor ke JSON
     function exportPoints() {
-        const blob = new Blob([JSON.stringify(pointsList, null, 2)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(points, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -231,36 +119,35 @@
         URL.revokeObjectURL(url);
     }
 
-    function importPoints(event) {
-        const file = event.target.files[0];
+    // Impor dari JSON
+    function importPoints() {
+        const fileInput = document.getElementById('importFile');
+        const file = fileInput.files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
                 const data = JSON.parse(e.target.result);
-                if (!Array.isArray(data)) throw new Error("Format JSON tidak valid");
-
-                clearPoints();
-                data.forEach(item => {
-                    document.getElementById('point-name').value = item.name;
-                    const dmsLat = convertDDToDMS(item.lat, item.lng);
-                    document.getElementById('plot-lat-deg').value = dmsLat.latDeg;
-                    document.getElementById('plot-lat-min').value = dmsLat.latMin;
-                    document.getElementById('plot-lat-sec').value = dmsLat.latSec;
-                    document.getElementById('plot-lon-deg').value = dmsLat.lonDeg;
-                    document.getElementById('plot-lon-min').value = dmsLat.lonMin;
-                    document.getElementById('plot-lon-sec').value = dmsLat.lonSec;
-                    document.getElementById('plot-direction').value = 
-                        (item.lat >= 0 ? 'N' : 'S') + ',' + (item.lng >= 0 ? 'E' : 'W');
-                    addPoint();
+                points = [];
+                pointCounter = 1;
+                map.eachLayer(layer => {
+                    if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
+                        map.removeLayer(layer);
+                    }
                 });
+                for (const p of data) {
+                    createCustomMarker(p.lat, p.lng, pointCounter);
+                    points.push({ id: pointCounter, lat: p.lat, lng: p.lng });
+                    pointCounter++;
+                }
             } catch (err) {
-                alert("Gagal memuat file JSON: " + err.message);
+                alert("File JSON tidak valid!");
             }
         };
         reader.readAsText(file);
     }
 </script>
+
 </body>
 </html>
