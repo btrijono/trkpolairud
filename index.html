@@ -2,13 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Map Julong</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
         #map {
-            height: 1100px;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
         }
         #coordinates-form {
             position: absolute;
@@ -19,90 +27,126 @@
             z-index: 1000;
             border: 1px solid #ccc;
             border-radius: 5px;
-            font-family: Arial, sans-serif;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
         }
         #coordinates-form input {
             width: 180px;
             margin-right: 5px;
+            padding: 5px;
+        }
+        #coordinates-form button {
+            padding: 5px 10px;
+            background: #0078A8;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .leaflet-control-layers {
+            margin-right: 10px !important;
+            margin-top: 10px !important;
         }
     </style>
 </head>
 <body>
+    <div id="coordinates-form">
+        <form id="search-form">
+            <label for="coordinates">Koordinat (Latitude, Longitude):</label>
+            <input type="text" id="coordinates" name="coordinates" placeholder="Contoh: -0.7893, 113.9213" required>
+            <button type="submit">Cari Lokasi</button>
+        </form>
+    </div>
 
-<div id="coordinates-form">
-    <form id="search-form">
-        <label for="coordinates">Koordinat (Latitude, Longitude):</label>
-        <input type="text" id="coordinates" name="coordinates" placeholder="Contoh: -0.7893, 113.9213" required>
-        <button type="submit">Cari Lokasi</button>
-    </form>
-</div>
+    <div id="map"></div>
 
-<div id="map"></div>
-
-<script>
-    // Inisialisasi peta tanpa marker awal
-    var map = L.map('map').setView([-0.7893, 113.9213], 8);
-    
-    // Google Satellite Tile Layer
-    var googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-        attribution: 'Map data &copy; <a href="https://www.google.com/maps">Google Maps</a>',
-        maxZoom: 20
-    });
-    
-    // OpenStreetMap Tile Layer
-    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: 'Map data &copy; OpenStreetMap contributors',
-        maxZoom: 20
-    });    
-    
-// Ganti layer Julong dengan ini jika error:
-var jlg = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: 'Map data © OpenStreetMap'
-}).addTo(map);
-    
-    var baseMaps = {
-        "Google Satellite": googleSat,
-        "OpenStreetMap": osm,
-        "Julong Map": jlg
-    };
-    
-    var overlayMaps = {};
-    var userMarker = null;
-
-   
-
-    // Handle coordinate search
-    document.getElementById("search-form").addEventListener("submit", function (event) {
-        event.preventDefault();
-
-        var input = document.getElementById("coordinates").value.trim();
-        var regex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
-        
-        if (!regex.test(input)) {
-            alert("Format tidak valid! Gunakan format: Latitude, Longitude (contoh: -0.7893, 113.9213)");
-            return;
-        }
-
-        var coords = input.split(",").map(c => parseFloat(c.trim()));
-        var lat = coords[0], lon = coords[1];
-
-        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-            alert("Koordinat tidak valid! Latitude harus antara -90 sampai 90, dan Longitude antara -180 sampai 180.");
-            return;
-        }
-
-        // Zoom ke lokasi pencarian
-        map.setView([lat, lon], 16);
-
-        // Hapus marker sebelumnya jika ada
-        if (userMarker) {
-            map.removeLayer(userMarker);
-        }
-
-        // Tambahkan marker baru
-        userMarker = L.marker([lat, lon]).addTo(map);
-        userMarker.bindPopup(`Lokasi Pencarian:<br>Latitude: ${lat}<br>Longitude: ${lon}`).openPopup();
-    });
-</script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inisialisasi peta
+            var map = L.map('map').setView([-0.7893, 113.9213], 8);
+            
+            // Layer OpenStreetMap (default)
+            var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Layer Google Satellite
+            var googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                attribution: 'Google Satellite',
+                maxZoom: 20,
+                subdomains: ['mt0','mt1','mt2','mt3']
+            });
+            
+            // Layer Google Roadmap
+            var googleRoadmap = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                attribution: 'Google Maps',
+                maxZoom: 20,
+                subdomains: ['mt0','mt1','mt2','mt3']
+            });
+            
+            // Layer Google Hybrid
+            var googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                attribution: 'Google Hybrid',
+                maxZoom: 20,
+                subdomains: ['mt0','mt1','mt2','mt3']
+            });
+            
+            // Layer ESRI World Imagery
+            var esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri',
+                maxZoom: 20
+            });
+            
+            // Kontrol layer di pojok kanan atas
+            var baseLayers = {
+                "OpenStreetMap": osm,
+                "Google Satellite": googleSat,
+                "Google Roadmap": googleRoadmap,
+                "Google Hybrid": googleHybrid,
+                "ESRI Satellite": esriSatellite
+            };
+            
+            L.control.layers(baseLayers, null, {
+                position: 'topright',
+                collapsed: false
+            }).addTo(map);
+            
+            // Variabel marker
+            var userMarker = null;
+            
+            // Handle pencarian koordinat
+            document.getElementById("search-form").addEventListener("submit", function(event) {
+                event.preventDefault();
+                
+                var input = document.getElementById("coordinates").value.trim();
+                var regex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
+                
+                if (!regex.test(input)) {
+                    alert("Format tidak valid! Gunakan format: Latitude, Longitude (contoh: -0.7893, 113.9213)");
+                    return;
+                }
+                
+                var coords = input.split(",").map(c => parseFloat(c.trim()));
+                var lat = coords[0], lon = coords[1];
+                
+                if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                    alert("Koordinat tidak valid! Latitude harus antara -90 sampai 90, dan Longitude antara -180 sampai 180.");
+                    return;
+                }
+                
+                // Zoom ke lokasi
+                map.setView([lat, lon], 16);
+                
+                // Hapus marker lama
+                if (userMarker) {
+                    map.removeLayer(userMarker);
+                }
+                
+                // Tambahkan marker baru
+                userMarker = L.marker([lat, lon]).addTo(map);
+                userMarker.bindPopup(`Lokasi Pencarian:<br>Latitude: ${lat}<br>Longitude: ${lon}`).openPopup();
+            });
+        });
+    </script>
 </body>
 </html>
