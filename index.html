@@ -1,62 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Plotting Titik dengan Label & Print</title>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-    <!-- Leaflet EasyPrint -->
-    <script src="https://unpkg.com/leaflet-easyprint@2.1.9/dist/bundle.js"></script>
-
-    <style>
-        #map { height: 100vh; }
-        .leaflet-control { background: white; padding: 5px; }
-    </style>
+<meta charset="UTF-8">
+<title>Peta Plotting dengan Export PDF</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  #map { height: 90vh; width: 100%; }
+  .title-print {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-weight: bold;
+    font-size: 20px;
+    background: rgba(255,255,255,0.8);
+    padding: 5px 10px;
+    border-radius: 4px;
+    z-index: 1000;
+  }
+</style>
 </head>
 <body>
 
 <div id="map"></div>
 
+<!-- Tambah tombol export PDF -->
+<button id="exportPDF" style="position:absolute; top:10px; left:10px; z-index:1000;">
+Export PDF
+</button>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <script>
-let map = L.map('map').setView([-0.7893, 113.9213], 6);
-
-// ===== Pilihan Layer Peta =====
-let baseLayers = {
-    "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }),
-    "Esri World Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles &copy; Esri'
-    }),
-    "Carto Light": L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; Carto'
-    }),
-    "Carto Dark": L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; Carto'
-    }),
-    "Stamen Toner": L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png', {
-        attribution: '&copy; Stamen Design'
-    })
-};
-
-baseLayers["OpenStreetMap"].addTo(map);
-L.control.layers(baseLayers).addTo(map);
-
-// ===== Data Titik =====
-let points = [];
+let map = L.map('map').setView([-0.7893, 113.9213], 8);
 let pointCounter = 0;
+let points = [];
+let titleDiv = null;
 
-// Fungsi Tambah Titik
+// Background map
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
+
+// Fungsi tambah titik
 function addPoint(lat, lng) {
     pointCounter++;
     const pointNumber = pointCounter;
 
-    // Marker plus di dalam lingkaran
-    L.marker([lat, lng], {
+    // Marker tanda plus dalam lingkaran
+    const marker = L.marker([lat, lng], {
         icon: L.divIcon({
             html: `<div style="width: 24px; height: 24px; border: 2px solid red; border-radius: 50%; 
                     background-color: white; display: flex; align-items: center; justify-content: center;
@@ -65,10 +59,11 @@ function addPoint(lat, lng) {
         })
     }).addTo(map);
 
-    // Label nomor titik (selalu terlihat)
+    // Label nomor titik
     L.marker([lat, lng], {
         icon: L.divIcon({
-            html: `<b style="color:black; background:rgba(255,255,255,0.7); padding:1px 4px; border-radius:4px; font-size:12px;">
+            html: `<b style="color:black; background:rgba(255,255,255,0.7); padding:1px 4px; 
+                    border-radius:4px; font-size:12px;">
                     ${pointNumber}</b>`,
             className: '',
             iconAnchor: [-5, -20]
@@ -84,65 +79,39 @@ map.on('click', function(e) {
     addPoint(e.latlng.lat, e.latlng.lng);
 });
 
-// ===== Fitur Export JSON =====
-function exportJSON() {
-    let dataStr = JSON.stringify(points);
-    let blob = new Blob([dataStr], { type: "application/json" });
-    let url = URL.createObjectURL(blob);
+// Fungsi Export PDF
+document.getElementById('exportPDF').addEventListener('click', async function() {
+    let title = prompt("Masukkan Judul Peta:");
+    if (!title) return;
+    title = title.toUpperCase();
 
-    let a = document.createElement("a");
-    a.href = url;
-    a.download = "titik.json";
-    a.click();
-    URL.revokeObjectURL(url);
-}
+    // Buat div judul di peta
+    if (titleDiv) {
+        titleDiv.remove();
+    }
+    titleDiv = document.createElement('div');
+    titleDiv.className = 'title-print';
+    titleDiv.innerText = title;
+    document.body.appendChild(titleDiv);
 
-// ===== Fitur Import JSON =====
-function importJSON(event) {
-    let file = event.target.files[0];
-    if (!file) return;
-    let reader = new FileReader();
-    reader.onload = function(e) {
-        let data = JSON.parse(e.target.result);
-        points = [];
-        pointCounter = 0;
-        map.eachLayer(function(layer) {
-            if (layer instanceof L.Marker && !layer._url) {
-                map.removeLayer(layer);
-            }
-        });
-        data.forEach(p => addPoint(p.lat, p.lng));
-    };
-    reader.readAsText(file);
-}
+    // Tunggu sedikit biar judul muncul
+    await new Promise(r => setTimeout(r, 500));
 
-// ===== Tombol Export/Import =====
-L.control.custom = function(opts) {
-    let control = L.Control.extend({
-        options: { position: opts.position },
-        onAdd: function() {
-            let div = L.DomUtil.create('div', 'leaflet-control');
-            div.innerHTML = `
-                <button onclick="exportJSON()">Export JSON</button>
-                <input type="file" onchange="importJSON(event)" style="margin-top:5px;">
-            `;
-            return div;
-        }
-    });
-    return new control();
-};
-map.addControl(new (L.control.custom({ position: 'topright' })));
+    // Tangkap peta
+    const mapCanvas = await html2canvas(document.getElementById('map'), {useCORS:true});
+    const imgData = mapCanvas.toDataURL('image/png');
 
-// ===== Menu Print =====
-L.easyPrint({
-    title: 'Print Peta',
-    position: 'topleft',
-    sizeModes: ['A4Portrait', 'A4Landscape'],
-    filename: 'peta_dengan_nomor',
-    exportOnly: false,
-    hideControlContainer: false
-}).addTo(map);
+    // Buat PDF
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('landscape', 'pt', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+    pdf.save('peta.pdf');
 
+    // Hapus judul setelah export
+    titleDiv.remove();
+});
 </script>
 
 </body>
