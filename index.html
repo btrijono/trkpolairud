@@ -30,7 +30,7 @@
 <body>
 
 <div id="coordinates-form">
-    <form id="search-form" method="POST">
+    <form id="search-form">
         <label for="coordinates">Koordinat (Latitude, Longitude):</label>
         <input type="text" id="coordinates" name="coordinates" placeholder="Contoh: -0.7893, 113.9213" required>
         <button type="submit">Cari Lokasi</button>
@@ -45,53 +45,59 @@
     
     // Google Satellite Tile Layer
     var googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-        attribution: 'Map data &copy; <a href="https://www.google.com/maps">Google Maps</a>'
+        attribution: 'Map data &copy; <a href="https://www.google.com/maps">Google Maps</a>',
+        maxZoom: 20
     });
+    
     // OpenStreetMap Tile Layer
     var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: 'Map data &copy; OpenStreetMap contributors'
+        attribution: 'Map data &copy; OpenStreetMap contributors',
+        maxZoom: 20
     });    
-    // OpenStreetMap Tile Layer
-    var jlg =L.tileLayer('http://gis.julongindonesia.com:8082/jlg2023/{z}/{x}/{y}.png', {
-        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    
+    // Julong Map Tile Layer (diubah ke HTTPS jika tersedia)
+    var jlg = L.tileLayer('https://gis.julongindonesia.com:8082/jlg2023/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; Julong Indonesia',
+        maxZoom: 20
     }).addTo(map);
     
     var baseMaps = {
         "Google Satellite": googleSat,
         "OpenStreetMap": osm,
-		"Julong Map": jlg
+        "Julong Map": jlg
     };
     
     var overlayMaps = {};
 
-    // Load Shapefile using shp.js
+    // Load Shapefile menggunakan shp.js
+    // Pastikan file ZIP shapefile ada di repository
     shp("LICENSESHP/background/jlg_planted.zip").then(function (geojson) {
-    var shpLayer = L.geoJSON(geojson, {
-        style: function (feature) {
-            return {
-                color: "#008000", // Warna garis tepi (outline) hijau
-                weight: 2,        // Ketebalan garis
-                fillColor: "#00FF00", // Warna isi hijau terang
-                fillOpacity: 0.2  // Transparansi warna isi
-            };
-        },
-        onEachFeature: function (feature, layer) {
-            if (feature.properties) {
-                layer.bindPopup(Object.keys(feature.properties).map(function (k) {
-                    return k + ": " + feature.properties[k];
-                }).join("<br />"));
+        var shpLayer = L.geoJSON(geojson, {
+            style: function (feature) {
+                return {
+                    color: "#008000", // Warna garis tepi (outline) hijau
+                    weight: 2,        // Ketebalan garis
+                    fillColor: "#00FF00", // Warna isi hijau terang
+                    fillOpacity: 0.2  // Transparansi warna isi
+                };
+            },
+            onEachFeature: function (feature, layer) {
+                if (feature.properties) {
+                    layer.bindPopup(Object.keys(feature.properties).map(function (k) {
+                        return k + ": " + feature.properties[k];
+                    }).join("<br />"));
+                }
             }
-        }
-    }).addTo(map);
-    
-    overlayMaps["Planted"] = shpLayer;
-    map.fitBounds(shpLayer.getBounds());
+        }).addTo(map);
+        
+        overlayMaps["Planted"] = shpLayer;
+        map.fitBounds(shpLayer.getBounds());
 
-    L.control.layers(baseMaps, overlayMaps).addTo(map);
-}).catch(function (error) {
-    console.error("Error loading Shapefile:", error);
-    alert("Failed to load Shapefile.");
-});
+        L.control.layers(baseMaps, overlayMaps).addTo(map);
+    }).catch(function (error) {
+        console.error("Error loading Shapefile:", error);
+        alert("Gagal memuat Shapefile. Pastikan file jlg_planted.zip ada di folder LICENSESHP/background/");
+    });
 
     // Handle coordinate search
     var userMarker = null;
@@ -123,32 +129,8 @@
 
         // Tambahkan marker baru
         userMarker = L.marker([lat, lon]).addTo(map);
-        userMarker.bindPopup(`Searched Location:<br>Latitude: ${lat}<br>Longitude: ${lon}`).openPopup();
+        userMarker.bindPopup(`Lokasi Pencarian:<br>Latitude: ${lat}<br>Longitude: ${lon}`).openPopup();
     });
 </script>
-
-<?php
-// Handle POST request untuk pencarian koordinat via PHP
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['coordinates'])) {
-    $coordinates = $_POST['coordinates'];
-    $coords = explode(',', $coordinates);
-    
-    if (count($coords) == 2) {
-        $latitude = trim($coords[0]);
-        $longitude = trim($coords[1]);
-
-        if (is_numeric($latitude) && is_numeric($longitude)) {
-            echo "<script>";
-            echo "var userMarker = L.marker([$latitude, $longitude]).addTo(map);\n";
-            echo "userMarker.bindPopup('Searched Location: Latitude $latitude, Longitude $longitude');\n";
-            echo "</script>";
-        } else {
-            echo "<script>alert('Koordinat tidak valid!');</script>";
-        }
-    } else {
-        echo "<script>alert('Format koordinat salah!');</script>";
-    }
-}
-?>
 </body>
 </html>
