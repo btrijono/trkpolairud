@@ -149,7 +149,10 @@
   const basemaps = {
     "OpenStreetMap" : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
-    }), 
+    }),
+    "OpenStreetMap2" : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+    }),
     "Esri World Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 20, attribution: 'Tiles &copy; Esri'
     }),
