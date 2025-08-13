@@ -1,177 +1,457 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
-<meta charset="UTF-8">
-<title>Plotting Titik dengan PDF</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Interactive Map Julong - Lengkap</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Print to PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <style>
-    body { margin:0; font-family: Arial, sans-serif; }
-    #map { height: 70vh; width: 100%; }
-    #controls {
-        background: #f8f8f8;
-        padding: 4px;
-        font-size: 12px;
-        border-bottom: 1px solid #ccc;
-    }
-    #controls button, #controls input {
-        font-size: 12px;
-        padding: 2px 6px;
-        margin: 1px;
-    }
-    #pointTable {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-    }
-    #pointTable th, #pointTable td {
-        border: 1px solid #ccc;
-        padding: 4px;
-        text-align: center;
-    }
-    #pointTable input {
-        width: 90%;
-        font-size: 12px;
-        padding: 2px;
-    }
+  :root{
+    --panel-w: 320px;
+    --panel-bg: rgba(255,255,255,0.92);
+    --accent: #0078A8;
+  }
+  html, body { height:100%; margin:0; font-family: Arial, sans-serif; }
+  #map { position:absolute; inset:0; }
+  /* Panel kiri */
+  .control-panel{
+    position: absolute; top:10px; left:10px; z-index:1000;
+    width: var(--panel-w); max-height: 92vh; overflow:auto;
+    background: var(--panel-bg); border:1px solid #dcdcdc; border-radius:8px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.15); padding: 10px;
+    font-size: 13px;
+  }
+  .control-panel h3{ margin:0 0 8px 0; font-size:16px; }
+  .group{ margin-bottom:10px; }
+  label{ display:block; font-weight:bold; margin-bottom:4px; }
+  .row{ display:flex; gap:6px; }
+  input, select, button{
+    width:100%; padding:8px; box-sizing:border-box; font-size:13px;
+  }
+  button{
+    background: var(--accent); color:#fff; border:none; border-radius:4px; cursor:pointer;
+  }
+  button:hover{ background:#005f87; }
+  .coord-input input{ flex:1; }
+  .points-list{
+    border:1px solid #eee; border-radius:6px; background:#fff;
+    max-height:200px; overflow:auto; padding:6px;
+  }
+  .point-item{
+    padding:6px; border-bottom:1px dashed #eee; cursor:pointer; display:flex; gap:8px; align-items:center;
+  }
+  .point-item:last-child{ border-bottom:none; }
+  .point-name[contenteditable="true"]{
+    outline: none; border-bottom:1px dotted #ccc;
+  }
+  .mini-btn{ padding:4px 6px; font-size:12px; }
+  .toolbar-row .row > *{ flex:1; }
+
+  /* Marker custom (plus di circle) */
+  .plus-marker{
+    width: 24px; height: 24px; border: 2px solid var(--accent); border-radius: 50%;
+    background: rgba(255,255,255,0.9);
+    display:flex; align-items:center; justify-content:center; color: var(--accent);
+    font-weight:bold; font-size:16px; line-height:1;
+  }
+  /* Label nomor titik */
+  .point-label{
+    background: rgba(255,255,255,0.85);
+    padding: 1px 5px; border-radius: 4px; font-weight:bold; font-size:12px; color:#111;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+
+  /* Sembunyikan panel saat mode print browser (cadangan kalau user Ctrl+P) */
+  @media print{
+    .control-panel{ display:none !important; }
+  }
 </style>
 </head>
 <body>
 
-<div id="controls">
-    Judul Peta: <input type="text" id="mapTitle" placeholder="Masukkan Judul" />
-    <button onclick="toggleMenu()">Toggle Menu</button>
-    <button onclick="exportJSON()">Export JSON</button>
-    <input type="file" id="importFile" onchange="importJSON(event)" />
-    <button onclick="exportPDF()">Export PDF</button>
-</div>
-
 <div id="map"></div>
 
-<h3 style="margin:4px; font-size:14px;">Daftar Titik</h3>
-<table id="pointTable">
-    <thead>
-        <tr>
-            <th>No</th>
-            <th>Nama Titik</th>
-            <th>Latitude</th>
-            <th>Longitude</th>
-        </tr>
-    </thead>
-    <tbody></tbody>
-</table>
+<div class="control-panel" id="panel">
+  <h3>Menu Plotting</h3>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<!-- html2canvas & jsPDF -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <div class="group">
+    <label>Judul Peta (untuk PDF)</label>
+    <input id="mapTitle" type="text" placeholder="mis. PETA KEBUN JULONG">
+  </div>
+
+  <div class="group">
+    <label>Basemap</label>
+    <select id="basemapSelect"></select>
+  </div>
+
+  <div class="group">
+    <label>Input Koordinat (DMS)</label>
+    <div class="row coord-input">
+      <input type="number" id="lat-deg" placeholder="Lat °" step="1" min="0" max="90">
+      <input type="number" id="lat-min" placeholder="Lat '" step="1" min="0" max="59">
+      <input type="number" id="lat-sec" placeholder='Lat "' step="0.01" min="0" max="59.99">
+    </div>
+    <div class="row coord-input" style="margin-top:6px">
+      <input type="number" id="lon-deg" placeholder="Lon °" step="1" min="0" max="180">
+      <input type="number" id="lon-min" placeholder="Lon '" step="1" min="0" max="59">
+      <input type="number" id="lon-sec" placeholder='Lon "' step="0.01" min="0" max="59.99">
+    </div>
+    <div class="row" style="margin-top:6px">
+      <select id="lat-dir">
+        <option value="N">Utara (N)</option>
+        <option value="S">Selatan (S)</option>
+      </select>
+      <select id="lon-dir">
+        <option value="E">Timur (E)</option>
+        <option value="W">Barat (W)</option>
+      </select>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <input type="text" id="point-name" placeholder="Nama Titik (opsional)">
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button id="btnAdd">Tambah Titik</button>
+      <button id="btnClear" class="mini-btn" title="Hapus semua titik">Hapus Semua</button>
+    </div>
+    <small>Tip: Klik peta untuk mengisi form otomatis dari lokasi yang diklik.</small>
+  </div>
+
+  <div class="group toolbar-row">
+    <div class="row">
+      <button id="btnExport">Ekspor JSON</button>
+      <label for="fileImport" style="display:flex;align-items:center;justify-content:center;background:#777;cursor:pointer;border-radius:4px;color:#fff;">Impor JSON</label>
+      <input id="fileImport" type="file" accept=".json" style="display:none">
+      <button id="btnPDF" title="Simpan peta ke PDF">Print PDF</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <label>Daftar Titik</label>
+    <div class="points-list" id="pointsList">
+      <div style="color:#777">Belum ada titik.</div>
+    </div>
+  </div>
+</div>
 
 <script>
-let map = L.map('map').setView([-2.5, 118], 5);
-let baseLayers = {
-    "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}),
-    "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
-};
-baseLayers["OpenStreetMap"].addTo(map);
-L.control.layers(baseLayers).addTo(map);
+  // ====== Inisialisasi Map & Basemap ======
+  const map = L.map('map', { zoomControl: true }).setView([-2.5489, 118.0149], 5);
 
-let points = [];
-let pointCounter = 0;
+  // Basemap definitions (pakai sumber yang stabil & CORS-friendly)
+  const basemaps = {
+    "OpenStreetMap" : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+    }),
+    "Carto Light" : L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20, subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO'
+    }),
+    "Carto Dark" : L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20, subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO'
+    }),
+    "Esri World Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 20, attribution: 'Tiles &copy; Esri'
+    }),
+    "Esri World Topo": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 20, attribution: 'Tiles &copy; Esri'
+    }),
+    "OpenTopoMap": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      maxZoom: 17, attribution: 'Map data: &copy; OpenStreetMap, SRTM | Style: &copy; OpenTopoMap'
+    })
+  };
 
-map.on('click', function(e){
-    addPoint(e.latlng.lat, e.latlng.lng, "Titik " + (pointCounter+1));
-});
+  // Tambahkan dropdown basemap
+  const basemapSelect = document.getElementById('basemapSelect');
+  Object.keys(basemaps).forEach((name, idx) => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    basemapSelect.appendChild(opt);
+    if (idx === 0) { basemaps[name].addTo(map); } // default
+  });
+  basemapSelect.addEventListener('change', () => {
+    // Bersihkan semua basemap aktif, lalu tambah yang dipilih
+    Object.values(basemaps).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+    basemaps[basemapSelect.value].addTo(map);
+  });
 
-function addPoint(lat, lng, name) {
-    pointCounter++;
-    let number = pointCounter;
+  // Scale bar
+  L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-    let marker = L.marker([lat, lng], {
-        icon: L.divIcon({
-            html: `<div style="width: 20px; height: 20px; border: 2px solid red; border-radius: 50%; 
-                    background: white; display: flex; align-items: center; justify-content: center; color:red;">+</div>`,
-            className: ''
-        })
-    }).addTo(map);
+  // ====== State Titik ======
+  const points = [];       // {id, name, lat, lng, marker, label}
+  let idSeq = 0;
 
-    let label = L.marker([lat, lng], {
-        icon: L.divIcon({
-            html: `<b style="background: rgba(255,255,255,0.7); padding:1px 4px; border-radius:4px; font-size:10px;">${number}</b>`,
-            className: '',
-            iconAnchor: [-5, -20]
-        }),
-        interactive: false
-    }).addTo(map);
+  // ====== Util Konversi DMS <-> DD ======
+  function DMSToDD(deg, min, sec, dir){
+    let d = (Number(deg)||0) + (Number(min)||0)/60 + (Number(sec)||0)/3600;
+    if (dir === 'S' || dir === 'W') d = -d;
+    return d;
+  }
+  function DDToDMS(dd, isLat=true){
+    const abs = Math.abs(dd);
+    const deg = Math.floor(abs);
+    const min = Math.floor((abs - deg) * 60);
+    const sec = ((abs - deg - min/60) * 3600).toFixed(2);
+    const dir = isLat ? (dd>=0?'N':'S') : (dd>=0?'E':'W');
+    return {deg, min, sec, dir};
+  }
 
-    points.push({number, name, lat, lng, marker, label});
-    updateTable();
-}
-
-function updateTable(){
-    let tbody = document.querySelector("#pointTable tbody");
-    tbody.innerHTML = "";
-    points.forEach((p, idx)=>{
-        let row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${p.number}</td>
-            <td><input type="text" value="${p.name}" onchange="editName(${idx}, this.value)" /></td>
-            <td>${p.lat.toFixed(6)}</td>
-            <td>${p.lng.toFixed(6)}</td>
-        `;
-        tbody.appendChild(row);
+  // ====== Marker Helpers ======
+  function makePlusIcon(){
+    return L.divIcon({
+      className: '',
+      html: `<div class="plus-marker">+</div>`,
+      iconSize: [24,24],
+      iconAnchor: [12,12]
     });
-}
+  }
+  function addPointToMap(lat, lng, labelText){
+    // Marker plus
+    const marker = L.marker([lat, lng], { icon: makePlusIcon() }).addTo(map);
+    // Label nomor permanen
+    const label = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: '',
+        html: `<span class="point-label">${labelText}</span>`,
+        iconAnchor: [-6, -18]
+      }),
+      interactive: false
+    }).addTo(map);
+    return { marker, label };
+  }
+  function removePointFromMap(p){
+    if (p?.marker) map.removeLayer(p.marker);
+    if (p?.label) map.removeLayer(p.label);
+  }
 
-function editName(index, newName){
-    points[index].name = newName;
-}
+  // ====== UI Elemen ======
+  const el = {
+    latDeg: document.getElementById('lat-deg'),
+    latMin: document.getElementById('lat-min'),
+    latSec: document.getElementById('lat-sec'),
+    lonDeg: document.getElementById('lon-deg'),
+    lonMin: document.getElementById('lon-min'),
+    lonSec: document.getElementById('lon-sec'),
+    latDir: document.getElementById('lat-dir'),
+    lonDir: document.getElementById('lon-dir'),
+    pointName: document.getElementById('point-name'),
+    btnAdd: document.getElementById('btnAdd'),
+    btnClear: document.getElementById('btnClear'),
+    btnExport: document.getElementById('btnExport'),
+    fileImport: document.getElementById('fileImport'),
+    btnPDF: document.getElementById('btnPDF'),
+    list: document.getElementById('pointsList'),
+    title: document.getElementById('mapTitle')
+  };
 
-function toggleMenu(){
-    let controls = document.getElementById("controls");
-    controls.style.display = (controls.style.display === "none") ? "block" : "none";
-}
+  // ====== Event: Klik Peta -> Isi Form DMS ======
+  map.on('click', (e) => {
+    const {lat, lng} = e.latlng;
+    const dmsLat = DDToDMS(lat, true);
+    const dmsLng = DDToDMS(lng, false);
+    el.latDeg.value = dmsLat.deg; el.latMin.value = dmsLat.min; el.latSec.value = dmsLat.sec; el.latDir.value = dmsLat.dir;
+    el.lonDeg.value = dmsLng.deg; el.lonMin.value = dmsLng.min; el.lonSec.value = dmsLng.sec; el.lonDir.value = dmsLng.dir;
+  });
 
-function exportJSON(){
-    let data = points.map(p => ({number:p.number, name:p.name, lat:p.lat, lng:p.lng}));
-    let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-    let url = URL.createObjectURL(blob);
-    let a = document.createElement("a");
-    a.href = url;
-    a.download = "titik.json";
-    a.click();
-}
+  // ====== Tambah Titik ======
+  el.btnAdd.addEventListener('click', () => {
+    const lat = DMSToDD(el.latDeg.value, el.latMin.value, el.latSec.value, el.latDir.value);
+    const lng = DMSToDD(el.lonDeg.value, el.lonMin.value, el.lonSec.value, el.lonDir.value);
+    if (Number.isNaN(lat) || Number.isNaN(lng) || Math.abs(lat)>90 || Math.abs(lng)>180){
+      alert('Koordinat tidak valid.');
+      return;
+    }
+    const id = ++idSeq;
+    const name = (el.pointName.value || `Titik ${id}`).trim();
+    const {marker, label} = addPointToMap(lat, lng, id);
 
-function importJSON(event){
-    let file = event.target.files[0];
-    if(!file) return;
-    let reader = new FileReader();
-    reader.onload = function(e){
-        let data = JSON.parse(e.target.result);
-        points.forEach(p => { map.removeLayer(p.marker); map.removeLayer(p.label); });
-        points = [];
-        pointCounter = 0;
-        data.forEach(d => addPoint(d.lat, d.lng, d.name));
+    const point = { id, name, lat, lng, marker, label };
+    points.push(point);
+    renderList();
+    el.pointName.value = '';
+  });
+
+  // ====== Hapus Semua Titik ======
+  el.btnClear.addEventListener('click', () => {
+    if (!points.length) return;
+    if (!confirm('Hapus semua titik?')) return;
+    points.forEach(removePointFromMap);
+    points.length = 0;
+    renderList();
+    idSeq = 0;
+  });
+
+  // ====== Render Daftar Titik ======
+  function renderList(){
+    el.list.innerHTML = '';
+    if (!points.length){
+      el.list.innerHTML = '<div style="color:#777">Belum ada titik.</div>';
+      return;
+    }
+    points.forEach((p, idx) => {
+      const item = document.createElement('div');
+      item.className = 'point-item';
+
+      const no = document.createElement('div');
+      no.textContent = p.id;
+      no.style.width = '28px';
+      no.style.fontWeight = 'bold';
+
+      const name = document.createElement('div');
+      name.className = 'point-name';
+      name.contentEditable = 'true';
+      name.textContent = p.name;
+      name.title = 'Klik untuk mengedit nama, lalu Enter atau klik di luar untuk simpan';
+      name.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter'){ ev.preventDefault(); name.blur(); }
+      });
+      name.addEventListener('blur', () => {
+        p.name = name.textContent.trim() || `Titik ${p.id}`;
+      });
+
+      const coords = document.createElement('div');
+      coords.style.marginLeft = 'auto';
+      coords.style.fontFamily = 'monospace';
+      coords.style.fontSize = '12px';
+      coords.textContent = `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`;
+
+      const btnZoom = document.createElement('button');
+      btnZoom.className = 'mini-btn';
+      btnZoom.textContent = 'Zoom';
+      btnZoom.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        map.setView([p.lat, p.lng], 16);
+      });
+
+      const btnDel = document.createElement('button');
+      btnDel.className = 'mini-btn';
+      btnDel.textContent = 'Hapus';
+      btnDel.style.background = '#c62d2d';
+      btnDel.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        removePointFromMap(p);
+        const i = points.findIndex(q => q.id === p.id);
+        if (i>=0) points.splice(i, 1);
+        renderList();
+      });
+
+      item.appendChild(no);
+      item.appendChild(name);
+      item.appendChild(coords);
+      item.appendChild(btnZoom);
+      item.appendChild(btnDel);
+
+      // klik baris = zoom juga
+      item.addEventListener('click', () => map.setView([p.lat, p.lng], 16));
+
+      el.list.appendChild(item);
+    });
+  }
+
+  // ====== Ekspor / Impor JSON ======
+  el.btnExport.addEventListener('click', () => {
+    const payload = points.map(p => ({ id:p.id, name:p.name, lat:p.lat, lng:p.lng }));
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'titik.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  el.fileImport.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const data = JSON.parse(reader.result);
+        // Bersihkan yang lama
+        points.forEach(removePointFromMap);
+        points.length = 0;
+        idSeq = 0;
+        if (Array.isArray(data)){
+          data.forEach(d => {
+            const lat = Number(d.lat), lng = Number(d.lng);
+            if (Number.isFinite(lat) && Number.isFinite(lng)){
+              const id = ++idSeq;
+              const name = (d.name || `Titik ${id}`).toString();
+              const {marker, label} = addPointToMap(lat, lng, id);
+              points.push({ id, name, lat, lng, marker, label });
+            }
+          });
+          renderList();
+        }else{
+          alert('Format JSON tidak valid (harus array of objects).');
+        }
+      }catch(err){
+        alert('Gagal membaca JSON: ' + err.message);
+      }finally{
+        e.target.value = '';
+      }
     };
     reader.readAsText(file);
-}
+  });
 
-async function exportPDF(){
-    let title = document.getElementById("mapTitle").value.toUpperCase();
-    let mapElement = document.getElementById("map");
-    let canvas = await html2canvas(mapElement, {useCORS:true, scale:2});
-    let imgData = canvas.toDataURL('image/png');
+  // ====== Print PDF (hanya map + judul) ======
+  document.getElementById('btnPDF').addEventListener('click', async () => {
+    const title = (el.title.value || 'PETA TANPA JUDUL').toUpperCase();
+
+    // Sembunyikan panel sementara (supaya tidak ikut ter-capture)
+    const panel = document.getElementById('panel');
+    const prev = panel.style.display;
+    panel.style.display = 'none';
+
+    // Tunggu layout stabil
+    await new Promise(r => setTimeout(r, 200));
+
+    // Ambil canvas map
+    const canvas = await html2canvas(document.getElementById('map'), { useCORS:true });
+    const imgData = canvas.toDataURL('image/png');
+
+    // Kembalikan panel
+    panel.style.display = prev || '';
 
     const { jsPDF } = window.jspdf;
-    let pdf = new jsPDF({orientation: "landscape", unit: "mm", format: "a4"});
-    pdf.setFontSize(14);
-    pdf.text(title, 10, 10);
-    let imgWidth = 280; // lebar sesuai A4 landscape
-    let imgHeight = canvas.height * imgWidth / canvas.width;
-    pdf.addImage(imgData, 'PNG', 10, 15, imgWidth, imgHeight);
-    pdf.save("peta.pdf");
-}
+    // Landscape A4
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    // Margin
+    const margin = 10;
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+
+    // Judul
+    pdf.setFontSize(16);
+    pdf.text(title, pageW/2, margin + 2, { align: 'center' });
+
+    // Hitung ukuran gambar proporsional (tanpa “membesar-besarkan”)
+    const imgWpx = canvas.width, imgHpx = canvas.height;
+    const dpi = 96; // asumsi layar ~96dpi
+    // konversi px ke mm: mm = px * 25.4 / dpi
+    const imgWmm = imgWpx * 25.4 / dpi;
+    const imgHmm = imgHpx * 25.4 / dpi;
+
+    const maxW = pageW - margin*2;
+    const maxH = pageH - (margin*2 + 10 /*space untuk judul*/);
+
+    const scale = Math.min(1, maxW/imgWmm, maxH/imgHmm); // JANGAN lebih dari 1 (tidak diperbesar)
+    const drawW = imgWmm * scale;
+    const drawH = imgHmm * scale;
+
+    const x = (pageW - drawW)/2;
+    const y = margin + 8; // di bawah judul
+
+    pdf.addImage(imgData, 'PNG', x, y, drawW, drawH, undefined, 'FAST');
+    pdf.save('peta.pdf');
+  });
 </script>
 
 </body>
