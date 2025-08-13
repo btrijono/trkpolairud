@@ -1,180 +1,125 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8" />
-<title>Peta Titik dengan Export/Import dan Print</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<style>
-  #map { height: 90vh; width: 100%; }
-  .marker-label {
-      background-color: white;
-      padding: 2px 4px;
-      border-radius: 4px;
-      font-size: 12px;
-      border: 1px solid gray;
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peta dengan Titik & Print</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-easyprint@2.1.9/dist/bundle.css">
+    <style>
+        #map { height: 90vh; }
+        .label-text {
+            background-color: white;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid #555;
+        }
+    </style>
 </head>
 <body>
 
+<h3>Peta dengan Titik, Ekspor/Impor JSON, Label, dan Print</h3>
+<input type="file" id="importFile" accept=".json">
+<button onclick="exportPoints()">Ekspor JSON</button>
 <div id="map"></div>
-<div style="padding:10px;">
-    <button id="add-point">Tambah Titik</button>
-    <button id="clear-points">Hapus Semua Titik</button>
-    <button id="export-json">Export JSON</button>
-    <input type="file" id="import-json" accept=".json">
-</div>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<!-- Leaflet EasyPrint -->
-<script src="https://unpkg.com/leaflet-easyprint/dist/bundle.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-easyprint@2.1.9/dist/bundle.js"></script>
 
 <script>
-let map, pointsLayer, pointCounter = 0, pointsData = [];
+let map = L.map('map').setView([-0.7893, 113.9213], 5);
+let points = [];
+let pointCounter = 0;
 
-// Inisialisasi peta
-map = L.map('map').setView([-0.7893, 113.9213], 6);
-
-// Pilihan Base Map
-var baseLayers = {
+// ====== Base Maps ======
+let baseMaps = {
     "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap', maxZoom: 19
+        attribution: '&copy; OpenStreetMap contributors'
     }),
-    "Google Satellite": L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-        attribution: 'Google', maxZoom: 20
+    "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri'
     }),
-    "Google Streets": L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-        attribution: 'Google', maxZoom: 20
-    }),
-    "Esri World Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles © Esri', maxZoom: 20
+    "Topographic": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenTopoMap contributors'
     }),
     "Carto Light": L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© Carto', subdomains: 'abcd', maxZoom: 20
+        attribution: '&copy; Carto'
     }),
     "Carto Dark": L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© Carto', subdomains: 'abcd', maxZoom: 20
+        attribution: '&copy; Carto'
     })
 };
+baseMaps["OpenStreetMap"].addTo(map);
+L.control.layers(baseMaps).addTo(map);
 
-// Tambahkan layer default
-baseLayers["OpenStreetMap"].addTo(map);
-
-// Layer titik
-pointsLayer = L.layerGroup().addTo(map);
-
-// Kontrol layer
-L.control.layers(baseLayers, { "Titik": pointsLayer }).addTo(map);
-
-// Plugin print peta
+// ====== Print Control ======
 L.easyPrint({
     title: 'Print Peta',
     position: 'topleft',
-    sizeModes: ['Current', 'A4Landscape', 'A4Portrait'],
-    filename: 'peta_titik',
-    exportOnly: true
+    sizeModes: ['A4Portrait', 'A4Landscape'],
+    filename: 'peta',
+    exportOnly: false,
+    hideControlContainer: false
 }).addTo(map);
 
-// Fungsi tambah titik
-function addPoint() {
-    let latlng = map.getCenter(); // untuk contoh, titiknya di tengah peta
-    pointCounter++;
-    let label = pointCounter.toString();
+// ====== Custom Marker (Plus Sign + Circle) ======
+let plusIcon = L.divIcon({
+    html: '<div style="position: relative; width: 20px; height: 20px; background: white; border-radius: 50%; border: 2px solid red; display: flex; align-items: center; justify-content: center; font-weight: bold; color: red;">+</div>',
+    iconSize: [20, 20],
+    className: ''
+});
 
-    // Marker custom (tanda plus di lingkaran)
-    let marker = L.marker(latlng, {
-        icon: L.divIcon({
-            html: `<div style="text-align:center;">
-                     <svg width="20" height="20">
-                       <circle cx="10" cy="10" r="8" stroke="red" stroke-width="2" fill="white"/>
-                       <line x1="10" y1="4" x2="10" y2="16" stroke="red" stroke-width="2"/>
-                       <line x1="4" y1="10" x2="16" y2="10" stroke="red" stroke-width="2"/>
-                     </svg>
-                   </div>`,
-            className: '',
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-        })
-    }).addTo(pointsLayer);
+// ====== Event Klik di Peta ======
+map.on('click', function(e) {
+    pointCounter++;
+    let marker = L.marker(e.latlng, { icon: plusIcon }).addTo(map);
 
     // Label nomor titik
-    L.marker([latlng.lat, latlng.lng], {
+    let label = L.marker(e.latlng, {
         icon: L.divIcon({
-            className: 'marker-label',
-            html: label,
-            iconSize: [20, 20],
-            iconAnchor: [10, -10]
+            className: 'label-text',
+            html: pointCounter.toString(),
+            iconSize: [20, 20]
         })
-    }).addTo(pointsLayer);
+    }).addTo(map);
 
-    pointsData.push({ id: label, lat: latlng.lat, lng: latlng.lng });
-}
+    points.push({ id: pointCounter, lat: e.latlng.lat, lng: e.latlng.lng });
+});
 
-// Fungsi hapus semua titik
-function clearPoints() {
-    pointsLayer.clearLayers();
-    pointCounter = 0;
-    pointsData = [];
-}
-
-// Export JSON
+// ====== Ekspor Titik ======
 function exportPoints() {
-    let blob = new Blob([JSON.stringify(pointsData, null, 2)], { type: "application/json" });
-    let url = URL.createObjectURL(blob);
-    let a = document.createElement("a");
-    a.href = url;
-    a.download = "titik.json";
-    a.click();
+    let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(points));
+    let dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", "points.json");
+    dlAnchorElem.click();
 }
 
-// Import JSON
-function importPoints(evt) {
-    let file = evt.target.files[0];
+// ====== Impor Titik ======
+document.getElementById('importFile').addEventListener('change', function(event) {
+    let file = event.target.files[0];
     if (!file) return;
+
     let reader = new FileReader();
     reader.onload = function(e) {
-        let imported = JSON.parse(e.target.result);
-        clearPoints();
-        imported.forEach(p => {
-            pointCounter++;
-            let marker = L.marker([p.lat, p.lng], {
-                icon: L.divIcon({
-                    html: `<div style="text-align:center;">
-                             <svg width="20" height="20">
-                               <circle cx="10" cy="10" r="8" stroke="red" stroke-width="2" fill="white"/>
-                               <line x1="10" y1="4" x2="10" y2="16" stroke="red" stroke-width="2"/>
-                               <line x1="4" y1="10" x2="16" y2="10" stroke="red" stroke-width="2"/>
-                             </svg>
-                           </div>`,
-                    className: '',
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
-                })
-            }).addTo(pointsLayer);
-
+        let importedPoints = JSON.parse(e.target.result);
+        points = importedPoints;
+        pointCounter = points.length;
+        points.forEach(p => {
+            L.marker([p.lat, p.lng], { icon: plusIcon }).addTo(map);
             L.marker([p.lat, p.lng], {
                 icon: L.divIcon({
-                    className: 'marker-label',
-                    html: p.id,
-                    iconSize: [20, 20],
-                    iconAnchor: [10, -10]
+                    className: 'label-text',
+                    html: p.id.toString(),
+                    iconSize: [20, 20]
                 })
-            }).addTo(pointsLayer);
+            }).addTo(map);
         });
-        pointsData = imported;
     };
     reader.readAsText(file);
-}
-
-// Event tombol
-document.getElementById("add-point").addEventListener("click", addPoint);
-document.getElementById("clear-points").addEventListener("click", clearPoints);
-document.getElementById("export-json").addEventListener("click", exportPoints);
-document.getElementById("import-json").addEventListener("change", importPoints);
-
+});
 </script>
+
 </body>
 </html>
