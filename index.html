@@ -6,6 +6,7 @@
     <title>Interactive Map Julong</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             margin: 0;
@@ -18,85 +19,147 @@
             bottom: 0;
             width: 100%;
         }
-        #coordinates-form {
+        .control-panel {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 10px;
+            left: 10px;
             background: rgba(255, 255, 255, 0.9);
             padding: 10px;
             z-index: 1000;
             border: 1px solid #ccc;
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            width: 300px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
-        #plotting-controls {
-            position: absolute;
-            top: 120px;
-            left: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            z-index: 1000;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
-        }
-        #coordinates-form input, #plotting-controls input {
-            width: 180px;
-            margin-right: 5px;
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
             padding: 5px;
-            margin-bottom: 5px;
+            background: #f0f0f0;
+            margin: -10px -10px 10px -10px;
+            border-radius: 5px 5px 0 0;
+        }
+        .panel-content {
+            display: block;
+        }
+        .collapsed .panel-content {
+            display: none;
+        }
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            box-sizing: border-box;
         }
         button {
-            padding: 5px 10px;
             background: #0078A8;
             color: white;
             border: none;
             border-radius: 3px;
             cursor: pointer;
-            margin-right: 5px;
         }
         button:hover {
             background: #005f87;
+        }
+        .coord-input {
+            display: flex;
+            gap: 5px;
+        }
+        .coord-input input {
+            flex: 1;
+        }
+        .points-list {
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .point-item {
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .point-item:hover {
+            background: #f5f5f5;
         }
         .leaflet-control-layers {
             border: 2px solid rgba(0,0,0,0.2);
             background-clip: padding-box;
         }
-        .leaflet-control-layers-toggle {
-            background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/layers.png);
-            width: 36px;
-            height: 36px;
-        }
-        .leaflet-retina .leaflet-control-layers-toggle {
-            background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/layers-2x.png);
-            background-size: 26px 26px;
-        }
     </style>
 </head>
 <body>
-    <div id="coordinates-form">
-        <form id="search-form">
-            <label for="coordinates">Koordinat (Latitude, Longitude):</label>
-            <input type="text" id="coordinates" name="coordinates" placeholder="Contoh: -0.7893, 113.9213" required>
-            <button type="submit">Cari Lokasi</button>
-        </form>
-    </div>
-
-    <div id="plotting-controls">
-        <h3>Plotting Titik</h3>
-        <input type="text" id="point-name" placeholder="Nama Titik">
-        <input type="text" id="point-coords" placeholder="Lat, Long">
-        <button id="add-point">Tambah Titik</button>
-        <button id="clear-points">Hapus Semua</button>
-        <div id="points-list" style="margin-top: 10px;"></div>
+    <div class="control-panel" id="main-control">
+        <div class="panel-header" onclick="togglePanel('main-control')">
+            <h3 style="margin: 0;">Menu Utama</h3>
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="panel-content">
+            <div class="tab">
+                <button class="tablinks active" onclick="openTab(event, 'search-tab')">Pencarian</button>
+                <button class="tablinks" onclick="openTab(event, 'plot-tab')">Plotting</button>
+            </div>
+            
+            <div id="search-tab" class="tabcontent" style="display: block;">
+                <h4>Pencarian Koordinat</h4>
+                <div class="coord-input">
+                    <input type="number" id="lat-deg" placeholder="Derajat" min="-90" max="90">
+                    <input type="number" id="lat-min" placeholder="Menit" min="0" max="59">
+                    <input type="number" id="lat-sec" placeholder="Detik" min="0" max="59">
+                </div>
+                <div class="coord-input">
+                    <input type="number" id="lon-deg" placeholder="Derajat" min="-180" max="180">
+                    <input type="number" id="lon-min" placeholder="Menit" min="0" max="59">
+                    <input type="number" id="lon-sec" placeholder="Detik" min="0" max="59">
+                </div>
+                <select id="coord-direction">
+                    <option value="N,E">Utara, Timur</option>
+                    <option value="S,E">Selatan, Timur</option>
+                    <option value="N,W">Utara, Barat</option>
+                    <option value="S,W">Selatan, Barat</option>
+                </select>
+                <button id="search-button">Cari Lokasi</button>
+                <div id="dd-coords" style="margin-top: 10px; font-size: 12px;"></div>
+            </div>
+            
+            <div id="plot-tab" class="tabcontent">
+                <h4>Plotting Titik</h4>
+                <input type="text" id="point-name" placeholder="Nama Titik">
+                <div class="coord-input">
+                    <input type="number" id="plot-lat-deg" placeholder="Derajat" min="-90" max="90">
+                    <input type="number" id="plot-lat-min" placeholder="Menit" min="0" max="59">
+                    <input type="number" id="plot-lat-sec" placeholder="Detik" min="0" max="59">
+                </div>
+                <div class="coord-input">
+                    <input type="number" id="plot-lon-deg" placeholder="Derajat" min="-180" max="180">
+                    <input type="number" id="plot-lon-min" placeholder="Menit" min="0" max="59">
+                    <input type="number" id="plot-lon-sec" placeholder="Detik" min="0" max="59">
+                </div>
+                <select id="plot-direction">
+                    <option value="N,E">Utara, Timur</option>
+                    <option value="S,E">Selatan, Timur</option>
+                    <option value="N,W">Utara, Barat</option>
+                    <option value="S,W">Selatan, Barat</option>
+                </select>
+                <button id="add-point">Tambah Titik</button>
+                <button id="clear-points">Hapus Semua</button>
+                <div class="points-list" id="points-list"></div>
+            </div>
+        </div>
     </div>
 
     <div id="map"></div>
 
     <script>
+        // Variabel global
+        var map, userMarker, pointsLayer = L.layerGroup(), pointsList = [];
+        
         document.addEventListener('DOMContentLoaded', function() {
             // Inisialisasi peta
-            var map = L.map('map').setView([-0.7893, 113.9213], 8);
+            map = L.map('map').setView([-0.7893, 113.9213], 8);
             
             // Layer OpenStreetMap (default)
             var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -111,166 +174,266 @@
                 subdomains: ['mt0','mt1','mt2','mt3']
             });
             
-            // Layer Google Roadmap
-            var googleRoadmap = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-                attribution: 'Google Maps',
-                maxZoom: 20,
-                subdomains: ['mt0','mt1','mt2','mt3']
-            });
-            
-            // Layer Google Hybrid
-            var googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-                attribution: 'Google Hybrid',
-                maxZoom: 20,
-                subdomains: ['mt0','mt1','mt2','mt3']
-            });
-            
-            // Layer ESRI World Imagery
-            var esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: 'Tiles &copy; Esri',
-                maxZoom: 20
-            });
-            
-            // Kontrol layer di pojok kanan atas
+            // Kontrol layer
             var baseLayers = {
                 "OpenStreetMap": osm,
-                "Google Satellite": googleSat,
-                "Google Roadmap": googleRoadmap,
-                "Google Hybrid": googleHybrid,
-                "ESRI Satellite": esriSatellite
+                "Google Satellite": googleSat
             };
             
-            var layerControl = L.control.layers(baseLayers, null, {
+            L.control.layers(baseLayers, null, {
                 position: 'topright',
                 collapsed: true
             }).addTo(map);
             
-            // Variabel untuk pencarian
-            var userMarker = null;
-            
-            // Variabel untuk plotting titik
-            var pointsLayer = L.layerGroup().addTo(map);
-            var pointsList = [];
-            
-            // Handle pencarian koordinat
-            document.getElementById("search-form").addEventListener("submit", function(event) {
-                event.preventDefault();
-                
-                var input = document.getElementById("coordinates").value.trim();
-                var regex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
-                
-                if (!regex.test(input)) {
-                    alert("Format tidak valid! Gunakan format: Latitude, Longitude (contoh: -0.7893, 113.9213)");
-                    return;
-                }
-                
-                var coords = input.split(",").map(c => parseFloat(c.trim()));
-                var lat = coords[0], lon = coords[1];
-                
-                if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-                    alert("Koordinat tidak valid! Latitude harus antara -90 sampai 90, dan Longitude antara -180 sampai 180.");
-                    return;
-                }
-                
-                // Zoom ke lokasi
-                map.setView([lat, lon], 16);
-                
-                // Hapus marker lama
-                if (userMarker) {
-                    map.removeLayer(userMarker);
-                }
-                
-                // Tambahkan marker baru
-                userMarker = L.marker([lat, lon]).addTo(map);
-                userMarker.bindPopup(`Lokasi Pencarian:<br>Latitude: ${lat}<br>Longitude: ${lon}`).openPopup();
-            });
-            
-            // Handle plotting titik
-            document.getElementById("add-point").addEventListener("click", function() {
-                var name = document.getElementById("point-name").value.trim();
-                var coordsInput = document.getElementById("point-coords").value.trim();
-                
-                if (!name || !coordsInput) {
-                    alert("Nama titik dan koordinat harus diisi!");
-                    return;
-                }
-                
-                var regex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
-                if (!regex.test(coordsInput)) {
-                    alert("Format koordinat tidak valid! Gunakan format: Latitude, Longitude");
-                    return;
-                }
-                
-                var coords = coordsInput.split(",").map(c => parseFloat(c.trim()));
-                var lat = coords[0], lon = coords[1];
-                
-                if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-                    alert("Koordinat tidak valid!");
-                    return;
-                }
-                
-                // Tambahkan marker ke peta
-                var marker = L.marker([lat, lon]).addTo(pointsLayer);
-                marker.bindPopup(`<b>${name}</b><br>Lat: ${lat}<br>Lon: ${lon}`);
-                
-                // Simpan ke daftar titik
-                pointsList.push({
-                    name: name,
-                    coords: [lat, lon],
-                    marker: marker
-                });
-                
-                // Update daftar titik
-                updatePointsList();
-                
-                // Kosongkan input
-                document.getElementById("point-name").value = "";
-                document.getElementById("point-coords").value = "";
-            });
-            
-            // Handle hapus semua titik
-            document.getElementById("clear-points").addEventListener("click", function() {
-                pointsLayer.clearLayers();
-                pointsList = [];
-                updatePointsList();
-            });
-            
-            // Fungsi untuk update daftar titik
-            function updatePointsList() {
-                var listContainer = document.getElementById("points-list");
-                listContainer.innerHTML = "<h4>Daftar Titik:</h4>";
-                
-                if (pointsList.length === 0) {
-                    listContainer.innerHTML += "<p>Tidak ada titik</p>";
-                    return;
-                }
-                
-                var list = document.createElement("ul");
-                pointsList.forEach(function(point, index) {
-                    var item = document.createElement("li");
-                    var link = document.createElement("a");
-                    link.href = "#";
-                    link.textContent = `${point.name} (${point.coords[0]}, ${point.coords[1]})`;
-                    link.style.cursor = "pointer";
-                    link.addEventListener("click", function() {
-                        map.setView(point.coords, 16);
-                        point.marker.openPopup();
-                    });
-                    item.appendChild(link);
-                    list.appendChild(item);
-                });
-                
-                listContainer.appendChild(list);
-            }
+            // Tambahkan layer points
+            pointsLayer.addTo(map);
             
             // Event klik peta untuk plotting otomatis
             map.on('click', function(e) {
-                document.getElementById("point-coords").value = e.latlng.lat.toFixed(6) + ", " + e.latlng.lng.toFixed(6);
+                var lat = e.latlng.lat;
+                var lng = e.latlng.lng;
+                var dms = convertDDToDMS(lat, lng);
+                
+                document.getElementById('plot-lat-deg').value = dms.latDeg;
+                document.getElementById('plot-lat-min').value = dms.latMin;
+                document.getElementById('plot-lat-sec').value = dms.latSec;
+                document.getElementById('plot-lon-deg').value = dms.lonDeg;
+                document.getElementById('plot-lon-min').value = dms.lonMin;
+                document.getElementById('plot-lon-sec').value = dms.lonSec;
+                
+                // Set direction based on coordinates
+                var latDir = lat >= 0 ? 'N' : 'S';
+                var lonDir = lng >= 0 ? 'E' : 'W';
+                document.getElementById('plot-direction').value = latDir + ',' + lonDir;
             });
             
-            // Inisialisasi daftar titik
-            updatePointsList();
+            // Event listener untuk pencarian
+            document.getElementById("search-button").addEventListener("click", searchLocation);
+            
+            // Event listener untuk plotting
+            document.getElementById("add-point").addEventListener("click", addPoint);
+            document.getElementById("clear-points").addEventListener("click", clearPoints);
+            
+            // Update DMS to DD display
+            const coordInputs = document.querySelectorAll('#search-tab input[type="number"]');
+            coordInputs.forEach(input => {
+                input.addEventListener('input', updateDDCoords);
+            });
+            document.getElementById('coord-direction').addEventListener('change', updateDDCoords);
         });
+        
+        // Fungsi untuk toggle panel
+        function togglePanel(panelId) {
+            const panel = document.getElementById(panelId);
+            panel.classList.toggle('collapsed');
+            const icon = panel.querySelector('.panel-header i');
+            if (panel.classList.contains('collapsed')) {
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+            } else {
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+            }
+        }
+        
+        // Fungsi untuk tab
+        function openTab(evt, tabName) {
+            const tabcontent = document.getElementsByClassName("tabcontent");
+            for (let i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            
+            const tablinks = document.getElementsByClassName("tablinks");
+            for (let i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+        
+        // Fungsi konversi DMS ke DD
+        function convertDMSToDD(deg, min, sec, direction) {
+            let dd = parseFloat(deg) + parseFloat(min)/60 + parseFloat(sec)/3600;
+            if (direction === 'S' || direction === 'W') {
+                dd = dd * -1;
+            }
+            return dd;
+        }
+        
+        // Fungsi konversi DD ke DMS
+        function convertDDToDMS(lat, lng) {
+            // Latitude
+            const latAbs = Math.abs(lat);
+            const latDeg = Math.floor(latAbs);
+            const latMin = Math.floor((latAbs - latDeg) * 60);
+            const latSec = ((latAbs - latDeg - latMin/60) * 3600).toFixed(2);
+            
+            // Longitude
+            const lngAbs = Math.abs(lng);
+            const lngDeg = Math.floor(lngAbs);
+            const lngMin = Math.floor((lngAbs - lngDeg) * 60);
+            const lngSec = ((lngAbs - lngDeg - lngMin/60) * 3600).toFixed(2);
+            
+            return {
+                latDeg: latDeg,
+                latMin: latMin,
+                latSec: latSec,
+                lonDeg: lngDeg,
+                lonMin: lngMin,
+                lonSec: lngSec
+            };
+        }
+        
+        // Update DD coordinates display
+        function updateDDCoords() {
+            const latDeg = document.getElementById('lat-deg').value || 0;
+            const latMin = document.getElementById('lat-min').value || 0;
+            const latSec = document.getElementById('lat-sec').value || 0;
+            const lonDeg = document.getElementById('lon-deg').value || 0;
+            const lonMin = document.getElementById('lon-min').value || 0;
+            const lonSec = document.getElementById('lon-sec').value || 0;
+            const direction = document.getElementById('coord-direction').value.split(',');
+            
+            const lat = convertDMSToDD(latDeg, latMin, latSec, direction[0]);
+            const lng = convertDMSToDD(lonDeg, lonMin, lonSec, direction[1]);
+            
+            document.getElementById('dd-coords').textContent = 
+                `Koordinat Desimal: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        }
+        
+        // Fungsi pencarian lokasi
+        function searchLocation() {
+            const latDeg = document.getElementById('lat-deg').value || 0;
+            const latMin = document.getElementById('lat-min').value || 0;
+            const latSec = document.getElementById('lat-sec').value || 0;
+            const lonDeg = document.getElementById('lon-deg').value || 0;
+            const lonMin = document.getElementById('lon-min').value || 0;
+            const lonSec = document.getElementById('lon-sec').value || 0;
+            const direction = document.getElementById('coord-direction').value.split(',');
+            
+            const lat = convertDMSToDD(latDeg, latMin, latSec, direction[0]);
+            const lng = convertDMSToDD(lonDeg, lonMin, lonSec, direction[1]);
+            
+            // Validasi koordinat
+            if (isNaN(lat) {
+                alert("Latitude tidak valid!");
+                return;
+            }
+            
+            if (isNaN(lng)) {
+                alert("Longitude tidak valid!");
+                return;
+            }
+            
+            // Zoom ke lokasi
+            map.setView([lat, lng], 16);
+            
+            // Hapus marker lama
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+            
+            // Tambahkan marker baru
+            userMarker = L.marker([lat, lng]).addTo(map);
+            userMarker.bindPopup(`Lokasi Pencarian:<br>Latitude: ${lat.toFixed(6)}<br>Longitude: ${lng.toFixed(6)}`).openPopup();
+        }
+        
+        // Fungsi tambah titik
+        function addPoint() {
+            const name = document.getElementById('point-name').value.trim();
+            const latDeg = document.getElementById('plot-lat-deg').value || 0;
+            const latMin = document.getElementById('plot-lat-min').value || 0;
+            const latSec = document.getElementById('plot-lat-sec').value || 0;
+            const lonDeg = document.getElementById('plot-lon-deg').value || 0;
+            const lonMin = document.getElementById('plot-lon-min').value || 0;
+            const lonSec = document.getElementById('plot-lon-sec').value || 0;
+            const direction = document.getElementById('plot-direction').value.split(',');
+            
+            if (!name) {
+                alert("Nama titik harus diisi!");
+                return;
+            }
+            
+            const lat = convertDMSToDD(latDeg, latMin, latSec, direction[0]);
+            const lng = convertDMSToDD(lonDeg, lonMin, lonSec, direction[1]);
+            
+            // Validasi koordinat
+            if (isNaN(lat) {
+                alert("Latitude tidak valid!");
+                return;
+            }
+            
+            if (isNaN(lng)) {
+                alert("Longitude tidak valid!");
+                return;
+            }
+            
+            // Tambahkan marker ke peta
+            const marker = L.marker([lat, lng]).addTo(pointsLayer);
+            const dms = convertDDToDMS(lat, lng);
+            const latDir = lat >= 0 ? 'N' : 'S';
+            const lonDir = lng >= 0 ? 'E' : 'W';
+            
+            marker.bindPopup(`
+                <b>${name}</b><br>
+                Latitude: ${dms.latDeg}°${dms.latMin}'${dms.latSec}"${latDir}<br>
+                Longitude: ${dms.lonDeg}°${dms.lonMin}'${dms.lonSec}"${lonDir}<br>
+                Desimal: ${lat.toFixed(6)}, ${lng.toFixed(6)}
+            `);
+            
+            // Simpan ke daftar titik
+            pointsList.push({
+                name: name,
+                coords: [lat, lng],
+                marker: marker
+            });
+            
+            // Update daftar titik
+            updatePointsList();
+            
+            // Kosongkan input nama
+            document.getElementById('point-name').value = '';
+        }
+        
+        // Fungsi hapus semua titik
+        function clearPoints() {
+            pointsLayer.clearLayers();
+            pointsList = [];
+            updatePointsList();
+        }
+        
+        // Fungsi update daftar titik
+        function updatePointsList() {
+            const listContainer = document.getElementById('points-list');
+            listContainer.innerHTML = '';
+            
+            if (pointsList.length === 0) {
+                listContainer.innerHTML = '<p>Tidak ada titik</p>';
+                return;
+            }
+            
+            pointsList.forEach((point, index) => {
+                const dms = convertDDToDMS(point.coords[0], point.coords[1]);
+                const latDir = point.coords[0] >= 0 ? 'N' : 'S';
+                const lonDir = point.coords[1] >= 0 ? 'E' : 'W';
+                
+                const pointElement = document.createElement('div');
+                pointElement.className = 'point-item';
+                pointElement.innerHTML = `
+                    <strong>${point.name}</strong><br>
+                    ${dms.latDeg}°${dms.latMin}'${dms.latSec}"${latDir}, 
+                    ${dms.lonDeg}°${dms.lonMin}'${dms.lonSec}"${lonDir}
+                `;
+                
+                pointElement.addEventListener('click', () => {
+                    map.setView(point.coords, 16);
+                    point.marker.openPopup();
+                });
+                
+                listContainer.appendChild(pointElement);
+            });
+        }
     </script>
 </body>
 </html>
