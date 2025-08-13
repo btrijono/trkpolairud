@@ -1,471 +1,178 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Interactive Map Julong – Plotting & Grid</title>
-
-<!-- Leaflet -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- jsPDF (untuk PDF) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
+<meta charset="UTF-8">
+<title>Plotting Titik dengan PDF</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <style>
-  :root{
-    --brand:#0078A8;
-    --panel-bg: rgba(255,255,255,0.95);
-    --border:#d9d9d9;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0;font-family:Arial,Helvetica,sans-serif}
-
-  /* Header controls */
-  .topbar{
-    display:flex;gap:10px;align-items:center;flex-wrap:wrap;
-    padding:10px;border-bottom:1px solid var(--border);background:#f8f9fb;
-  }
-  .btn{
-    padding:8px 12px;border:0;border-radius:6px;cursor:pointer;font-weight:600;
-    background:var(--brand);color:#fff;
-  }
-  .btn.secondary{background:#444}
-  .btn.ghost{background:#e9eef3;color:#222}
-  .btn:disabled{opacity:.6;cursor:not-allowed}
-  input[type="text"], input[type="number"], select{
-    padding:8px;border:1px solid var(--border);border-radius:6px;min-width:160px;
-  }
-
-  /* Panel plotting (toggle) */
-  #menuPanel{
-    padding:10px;border-bottom:1px solid var(--border);background:var(--panel-bg);
-    display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:8px;
-  }
-  #menuPanel.compact{grid-template-columns:repeat(3,minmax(120px,1fr))}
-  .span-2{grid-column:span 2}
-  .span-3{grid-column:span 3}
-
-  /* Peta + daftar */
-  #map{height:70vh;width:100%;}
-  #map.exporting .leaflet-control-container{display:none !important;} /* sembunyikan kontrol saat ekspor */
-  .grid-wrap{padding:10px;background:#fff;}
-  table{width:100%;border-collapse:collapse}
-  th,td{border:1px solid var(--border);padding:8px;text-align:center}
-  thead th{background:#f1f3f6}
-  td[contenteditable="true"]{background:#fff9ea;outline:none}
-  .row-actions button{margin:0 2px}
-
-  /* Marker custom */
-  .marker-plus{
-    width:24px;height:24px;border:2px solid var(--brand);border-radius:50%;
-    background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;
-    color:var(--brand);font-weight:900;font-size:18px;line-height:1;
-    box-shadow:0 1px 3px rgba(0,0,0,.25);
-  }
-  .map-label{
-    background:rgba(255,255,255,.85);padding:1px 6px;border-radius:4px;
-    font-size:12px;border:1px solid rgba(0,0,0,.15);white-space:nowrap
-  }
-
-  @media (max-width:900px){
-    #menuPanel{grid-template-columns:repeat(2,minmax(120px,1fr))}
-  }
+    body { margin:0; font-family: Arial, sans-serif; }
+    #map { height: 70vh; width: 100%; }
+    #controls {
+        background: #f8f8f8;
+        padding: 4px;
+        font-size: 12px;
+        border-bottom: 1px solid #ccc;
+    }
+    #controls button, #controls input {
+        font-size: 12px;
+        padding: 2px 6px;
+        margin: 1px;
+    }
+    #pointTable {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    #pointTable th, #pointTable td {
+        border: 1px solid #ccc;
+        padding: 4px;
+        text-align: center;
+    }
+    #pointTable input {
+        width: 90%;
+        font-size: 12px;
+        padding: 2px;
+    }
 </style>
 </head>
 <body>
 
-<!-- BAR ATAS -->
-<div class="topbar">
-  <button id="toggleMenu" class="btn">Sembunyikan Menu</button>
-  <label>Judul Peta:
-    <input type="text" id="mapTitle" placeholder="Masukkan judul peta" />
-  </label>
-  <button id="printPDF" class="btn secondary">Cetak PDF</button>
-  <span style="font-size:12px;color:#666">• Klik pada peta untuk menambahkan titik</span>
+<div id="controls">
+    Judul Peta: <input type="text" id="mapTitle" placeholder="Masukkan Judul" />
+    <button onclick="toggleMenu()">Toggle Menu</button>
+    <button onclick="exportJSON()">Export JSON</button>
+    <input type="file" id="importFile" onchange="importJSON(event)" />
+    <button onclick="exportPDF()">Export PDF</button>
 </div>
 
-<!-- PANEL PLOTTING (TOGGLE) -->
-<div id="menuPanel">
-  <div class="span-2" style="font-weight:bold;align-self:center">Tambah Titik (DMS)</div>
-
-  <input type="text" id="point-name" placeholder="Nama Titik" class="span-2" />
-
-  <select id="plot-direction" title="Arah">
-    <option value="N,E">Utara, Timur</option>
-    <option value="S,E">Selatan, Timur</option>
-    <option value="N,W">Utara, Barat</option>
-    <option value="S,W">Selatan, Barat</option>
-  </select>
-
-  <!-- LAT -->
-  <input type="number" id="plot-lat-deg" placeholder="Lat °" min="-90" max="90" step="any">
-  <input type="number" id="plot-lat-min" placeholder="Lat ‘" min="0" max="59" step="any">
-  <input type="number" id="plot-lat-sec" placeholder='Lat "' min="0" max="59" step="any">
-
-  <!-- LON -->
-  <input type="number" id="plot-lon-deg" placeholder="Lon °" min="-180" max="180" step="any">
-  <input type="number" id="plot-lon-min" placeholder="Lon ‘" min="0" max="59" step="any">
-  <input type="number" id="plot-lon-sec" placeholder='Lon "' min="0" max="59" step="any">
-
-  <button id="add-point" class="btn">Tambah Titik</button>
-  <button id="clear-points" class="btn ghost">Hapus Semua</button>
-
-  <button id="export-json" class="btn">Ekspor JSON</button>
-  <label class="span-2">Impor JSON:
-    <input type="file" id="import-json" accept=".json">
-  </label>
-
-  <!-- Basemap picker -->
-  <select id="basemap-picker" class="span-2">
-    <option value="osm">OpenStreetMap</option>
-    <option value="googleSat">Google Satellite</option>
-    <option value="googleStreets">Google Streets</option>
-    <option value="esri">Esri World Imagery</option>
-    <option value="cartoLight">Carto Light</option>
-    <option value="cartoDark">Carto Dark</option>
-    <option value="opentopo">OpenTopoMap</option>
-    <option value="stamenTerrain">Stamen Terrain</option>
-    <option value="stamenToner">Stamen Toner</option>
-    <option value="stamenWatercolor">Stamen Watercolor</option>
-  </select>
-</div>
-
-<!-- PETA -->
 <div id="map"></div>
 
-<!-- GRID DAFTAR TITIK -->
-<div class="grid-wrap">
-  <table id="pointTable">
+<h3 style="margin:4px; font-size:14px;">Daftar Titik</h3>
+<table id="pointTable">
     <thead>
-      <tr>
-        <th style="width:60px">No</th>
-        <th>Nama Titik (klik untuk edit)</th>
-        <th style="width:140px">Latitude</th>
-        <th style="width:140px">Longitude</th>
-        <th style="width:140px">Aksi</th>
-      </tr>
+        <tr>
+            <th>No</th>
+            <th>Nama Titik</th>
+            <th>Latitude</th>
+            <th>Longitude</th>
+        </tr>
     </thead>
     <tbody></tbody>
-  </table>
-</div>
+</table>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<!-- html2canvas & jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
-  // jsPDF
-  const { jsPDF } = window.jspdf;
+let map = L.map('map').setView([-2.5, 118], 5);
+let baseLayers = {
+    "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}),
+    "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
+};
+baseLayers["OpenStreetMap"].addTo(map);
+L.control.layers(baseLayers).addTo(map);
 
-  // ====== STATE ======
-  let map, pointsLayer = L.layerGroup(), labelLayer = L.layerGroup();
-  let points = []; // {id, name, lat, lng, marker, label}
-  let pointCounter = 0;
-  const $ = (id)=>document.getElementById(id);
+let points = [];
+let pointCounter = 0;
 
-  // ====== INIT MAP ======
-  map = L.map('map', { zoomControl: true }).setView([-2.5489, 118.0149], 5);
+map.on('click', function(e){
+    addPoint(e.latlng.lat, e.latlng.lng, "Titik " + (pointCounter+1));
+});
 
-  // Basemaps
-  const baseLayers = {
-    osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap', maxZoom:19}),
-    googleSat: L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',{attribution:'Google', maxZoom:20}),
-    googleStreets: L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{attribution:'Google', maxZoom:20}),
-    esri: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri', maxZoom:20}),
-    cartoLight: L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}{r}.png',{attribution:'© Carto', subdomains:'abcd', maxZoom:20}),
-    cartoDark: L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© Carto', subdomains:'abcd', maxZoom:20}),
-    opentopo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'© OpenTopoMap', maxZoom:17}),
-    stamenTerrain: L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg',{attribution:'Map tiles by Stamen', maxZoom:18}),
-    stamenToner: L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',{attribution:'Map tiles by Stamen', maxZoom:20}),
-    stamenWatercolor: L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg',{attribution:'Map tiles by Stamen', maxZoom:18}),
-  };
-  baseLayers.osm.addTo(map);
-  pointsLayer.addTo(map);
-  labelLayer.addTo(map);
-
-  // Leaflet layer control (optional)
-  L.control.layers({
-    "OpenStreetMap": baseLayers.osm,
-    "Google Satellite": baseLayers.googleSat,
-    "Google Streets": baseLayers.googleStreets,
-    "Esri World Imagery": baseLayers.esri,
-    "Carto Light": baseLayers.cartoLight,
-    "Carto Dark": baseLayers.cartoDark,
-    "OpenTopoMap": baseLayers.opentopo,
-    "Stamen Terrain": baseLayers.stamenTerrain,
-    "Stamen Toner": baseLayers.stamenToner,
-    "Stamen Watercolor": baseLayers.stamenWatercolor
-  }, null, { position:'topright', collapsed:true }).addTo(map);
-
-  // Basemap picker dropdown sync
-  $('basemap-picker').addEventListener('change', (e)=>{
-    const key = e.target.value;
-    // remove all basemaps then add the selected
-    Object.values(baseLayers).forEach(l=> map.hasLayer(l) && map.removeLayer(l));
-    baseLayers[key].addTo(map);
-  });
-
-  // ====== UTIL KONVERSI ======
-  function convertDMSToDD(deg, min, sec, dir){
-    let dd = (parseFloat(deg)||0) + (parseFloat(min)||0)/60 + (parseFloat(sec)||0)/3600;
-    if(dir==='S'||dir==='W') dd = -dd;
-    return dd;
-  }
-  function convertDDToDMS(lat, lng){
-    const latAbs=Math.abs(lat), latDeg=Math.floor(latAbs),
-          latMin=Math.floor((latAbs-latDeg)*60),
-          latSec=((latAbs-latDeg-latMin/60)*3600).toFixed(2);
-    const lngAbs=Math.abs(lng), lngDeg=Math.floor(lngAbs),
-          lngMin=Math.floor((lngAbs-lngDeg)*60),
-          lngSec=((lngAbs-lngDeg-lngMin/60)*3600).toFixed(2);
-    return {latDeg,latMin,latSec,lonDeg:lngDeg,lonMin:lngMin,lonSec:lngSec};
-  }
-
-  // ====== MARKER / LABEL ======
-  function createPlusIcon(){
-    return L.divIcon({
-      className:'',
-      html:`<div class="marker-plus">+</div>`,
-      iconSize:[24,24],
-      iconAnchor:[12,12]
-    });
-  }
-  function createLabelIcon(id, name){
-    return L.divIcon({
-      className:'',
-      html:`<span class="map-label">${id}. ${escapeHtml(name)}</span>`,
-      iconSize:[0,0],
-      iconAnchor:[-6,-18] // posisi label di atas marker
-    });
-  }
-  function escapeHtml(str){
-    return String(str).replace(/[&<>"']/g, s => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[s]));
-  }
-
-  // ====== ADD / UPDATE / DELETE ======
-  function addPoint(lat, lng, name){
+function addPoint(lat, lng, name) {
     pointCounter++;
-    const id = pointCounter;
+    let number = pointCounter;
 
-    const marker = L.marker([lat,lng],{icon:createPlusIcon()}).addTo(pointsLayer);
-    const label = L.marker([lat,lng],{icon:createLabelIcon(id,name), interactive:false}).addTo(labelLayer);
+    let marker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            html: `<div style="width: 20px; height: 20px; border: 2px solid red; border-radius: 50%; 
+                    background: white; display: flex; align-items: center; justify-content: center; color:red;">+</div>`,
+            className: ''
+        })
+    }).addTo(map);
 
-    const dms = convertDDToDMS(lat,lng);
-    const latDir = lat>=0?'N':'S';
-    const lonDir = lng>=0?'E':'W';
-    marker.bindPopup(
-      `<b>${id}. ${escapeHtml(name)}</b><br>
-       Lat: ${dms.latDeg}°${dms.latMin}'${dms.latSec}"${latDir}<br>
-       Lon: ${dms.lonDeg}°${dms.lonMin}'${dms.lonSec}"${lonDir}<br>
-       Desimal: ${lat.toFixed(6)}, ${lng.toFixed(6)}`
-    );
+    let label = L.marker([lat, lng], {
+        icon: L.divIcon({
+            html: `<b style="background: rgba(255,255,255,0.7); padding:1px 4px; border-radius:4px; font-size:10px;">${number}</b>`,
+            className: '',
+            iconAnchor: [-5, -20]
+        }),
+        interactive: false
+    }).addTo(map);
 
-    points.push({id, name, lat, lng, marker, label});
-    refreshTable();
-  }
+    points.push({number, name, lat, lng, marker, label});
+    updateTable();
+}
 
-  function updatePointName(id, newName){
-    const p = points.find(x=>x.id===id);
-    if(!p) return;
-    p.name = newName.trim();
-    if(p.label){ labelLayer.removeLayer(p.label); }
-    p.label = L.marker([p.lat,p.lng],{icon:createLabelIcon(p.id,p.name), interactive:false}).addTo(labelLayer);
-    // update popup title juga
-    const dms = convertDDToDMS(p.lat,p.lng);
-    const latDir = p.lat>=0?'N':'S';
-    const lonDir = p.lng>=0?'E':'W';
-    p.marker.bindPopup(
-      `<b>${p.id}. ${escapeHtml(p.name)}</b><br>
-       Lat: ${dms.latDeg}°${dms.latMin}'${dms.latSec}"${latDir}<br>
-       Lon: ${dms.lonDeg}°${dms.lonMin}'${dms.lonSec}"${lonDir}<br>
-       Desimal: ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`
-    );
-  }
-
-  function deletePoint(id){
-    const idx = points.findIndex(x=>x.id===id);
-    if(idx===-1) return;
-    const p = points[idx];
-    if(p.marker) pointsLayer.removeLayer(p.marker);
-    if(p.label) labelLayer.removeLayer(p.label);
-    points.splice(idx,1);
-    refreshTable();
-  }
-
-  // ====== TABLE ======
-  function refreshTable(){
-    const tbody = document.querySelector('#pointTable tbody');
-    tbody.innerHTML = '';
-    points.forEach(p=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${p.id}</td>
-        <td contenteditable="true" data-id="${p.id}" class="cell-name">${escapeHtml(p.name)}</td>
-        <td>${p.lat.toFixed(6)}</td>
-        <td>${p.lng.toFixed(6)}</td>
-        <td class="row-actions">
-          <button class="btn ghost" data-act="fly" data-id="${p.id}">Zoom</button>
-          <button class="btn ghost" data-act="del" data-id="${p.id}">Hapus</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
+function updateTable(){
+    let tbody = document.querySelector("#pointTable tbody");
+    tbody.innerHTML = "";
+    points.forEach((p, idx)=>{
+        let row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${p.number}</td>
+            <td><input type="text" value="${p.name}" onchange="editName(${idx}, this.value)" /></td>
+            <td>${p.lat.toFixed(6)}</td>
+            <td>${p.lng.toFixed(6)}</td>
+        `;
+        tbody.appendChild(row);
     });
+}
 
-    // Delegasi event: edit nama & tombol aksi
-    tbody.querySelectorAll('.cell-name').forEach(td=>{
-      td.addEventListener('blur', e=>{
-        const id = Number(td.dataset.id);
-        updatePointName(id, td.innerText);
-      });
-      td.addEventListener('keypress', e=>{
-        if(e.key==='Enter'){ e.preventDefault(); td.blur(); }
-      });
-    });
-    tbody.querySelectorAll('button').forEach(btn=>{
-      btn.onclick = e=>{
-        const id = Number(btn.dataset.id);
-        const act = btn.dataset.act;
-        const pt = points.find(x=>x.id===id);
-        if(!pt) return;
-        if(act==='fly'){ map.setView([pt.lat,pt.lng], 16); pt.marker.openPopup(); }
-        if(act==='del'){ deletePoint(id); }
-      };
-    });
-  }
+function editName(index, newName){
+    points[index].name = newName;
+}
 
-  // ====== CLICK MAP: auto isi DMS form & arah ======
-  map.on('click', (e)=>{
-    const {lat,lng} = e.latlng;
-    const dms = convertDDToDMS(lat,lng);
-    $('plot-lat-deg').value = dms.latDeg;
-    $('plot-lat-min').value = dms.latMin;
-    $('plot-lat-sec').value = dms.latSec;
-    $('plot-lon-deg').value = dms.lonDeg;
-    $('plot-lon-min').value = dms.lonMin;
-    $('plot-lon-sec').value = dms.lonSec;
-    $('plot-direction').value = (lat>=0?'N':'S') + ',' + (lng>=0?'E':'W');
+function toggleMenu(){
+    let controls = document.getElementById("controls");
+    controls.style.display = (controls.style.display === "none") ? "block" : "none";
+}
 
-    // Tambahkan titik cepat dengan nama default bila nama kosong?
-    // Komentari baris berikut jika tidak ingin auto tambah:
-    // addPoint(lat, lng, $('point-name').value.trim() || `Titik ${pointCounter+1}`);
-  });
+function exportJSON(){
+    let data = points.map(p => ({number:p.number, name:p.name, lat:p.lat, lng:p.lng}));
+    let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "titik.json";
+    a.click();
+}
 
-  // ====== FORM HANDLERS ======
-  $('add-point').addEventListener('click', ()=>{
-    const name = $('point-name').value.trim() || `Titik ${pointCounter+1}`;
-    const dir = $('plot-direction').value.split(',');
-    const lat = convertDMSToDD($('plot-lat-deg').value, $('plot-lat-min').value, $('plot-lat-sec').value, dir[0]);
-    const lng = convertDMSToDD($('plot-lon-deg').value, $('plot-lon-min').value, $('plot-lon-sec').value, dir[1]);
-    if(isNaN(lat) || isNaN(lng)){ alert('Koordinat tidak valid'); return; }
-    addPoint(lat, lng, name);
-    $('point-name').value = '';
-  });
-
-  $('clear-points').addEventListener('click', ()=>{
-    if(!confirm('Hapus semua titik?')) return;
-    pointsLayer.clearLayers();
-    labelLayer.clearLayers();
-    points = [];
-    pointCounter = 0;
-    refreshTable();
-  });
-
-  // ====== EXPORT / IMPORT ======
-  $('export-json').addEventListener('click', ()=>{
-    const data = points.map(p=>({id:p.id, name:p.name, lat:p.lat, lng:p.lng}));
-    const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'titik.json'; a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  $('import-json').addEventListener('change', (ev)=>{
-    const file = ev.target.files[0];
+function importJSON(event){
+    let file = event.target.files[0];
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (e)=>{
-      try{
-        const data = JSON.parse(e.target.result);
-        if(!Array.isArray(data)) throw new Error('Format JSON tidak valid');
-        // Tidak reset existing; jika ingin reset, panggil clear:
-        // $('clear-points').click();
-        data.forEach(item=>{
-          if(typeof item.lat==='number' && typeof item.lng==='number'){
-            addPoint(item.lat, item.lng, item.name || `Titik ${pointCounter+1}`);
-          }
-        });
-      }catch(err){ alert('Gagal memuat JSON: '+err.message); }
+    let reader = new FileReader();
+    reader.onload = function(e){
+        let data = JSON.parse(e.target.result);
+        points.forEach(p => { map.removeLayer(p.marker); map.removeLayer(p.label); });
+        points = [];
+        pointCounter = 0;
+        data.forEach(d => addPoint(d.lat, d.lng, d.name));
     };
     reader.readAsText(file);
-    // reset input supaya bisa import file yang sama lagi jika perlu
-    ev.target.value = '';
-  });
+}
 
-  // ====== TOGGLE MENU ======
-  $('toggleMenu').addEventListener('click', ()=>{
-    const el = $('menuPanel');
-    const hidden = el.style.display === 'none';
-    el.style.display = hidden ? 'grid' : 'none';
-    $('toggleMenu').innerText = hidden ? 'Sembunyikan Menu' : 'Tampilkan Menu';
-    setTimeout(()=> map.invalidateSize(), 150);
-  });
+async function exportPDF(){
+    let title = document.getElementById("mapTitle").value.toUpperCase();
+    let mapElement = document.getElementById("map");
+    let canvas = await html2canvas(mapElement, {useCORS:true, scale:2});
+    let imgData = canvas.toDataURL('image/png');
 
-  // ====== PRINT PDF (judul UPPERCASE, sembunyikan kontrol peta saat render) ======
-  $('printPDF').addEventListener('click', ()=>{
-    ensureHtml2Canvas(()=>{
-      const title = ($('mapTitle').value || 'Peta Titik').toUpperCase();
-
-      // Sembunyikan kontrol di map saat snapshot
-      const mapEl = $('map');
-      mapEl.classList.add('exporting');
-
-      // Reflow map (jaga-jaga)
-      map.invalidateSize();
-
-      window.html2canvas(mapEl, {
-        useCORS:true, logging:false, scale:2
-      }).then(canvas=>{
-        mapEl.classList.remove('exporting');
-
-        const img = canvas.toDataURL('image/png');
-        // Landscape A4: 297 x 210 mm -> jsPDF default unit "mm"
-        const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-
-        // Margin & layout
-        const margin = 10;
-        pdf.setFontSize(16);
-        pdf.text(title, margin, 14);
-
-        const imgW = pageW - margin*2;
-        const imgH = pageH - margin*2 - 10; // sisakan untuk judul
-        pdf.addImage(img, 'PNG', margin, 18, imgW, imgH);
-
-        pdf.save('peta_titik.pdf');
-      }).catch(err=>{
-        mapEl.classList.remove('exporting');
-        alert('Gagal membuat PDF: '+err.message);
-      });
-    });
-  });
-
-  // ====== html2canvas loader & ensure ======
-  function ensureHtml2Canvas(callback){
-    if(window.html2canvas){ callback(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload = ()=> callback();
-    s.onerror = ()=> alert('Gagal memuat html2canvas');
-    document.body.appendChild(s);
-  }
-
-  // ====== BONUS: keyboard Enter di nama ======
-  $('point-name').addEventListener('keypress', (e)=>{
-    if(e.key==='Enter'){ e.preventDefault(); $('add-point').click(); }
-  });
+    const { jsPDF } = window.jspdf;
+    let pdf = new jsPDF({orientation: "landscape", unit: "mm", format: "a4"});
+    pdf.setFontSize(14);
+    pdf.text(title, 10, 10);
+    let imgWidth = 280; // lebar sesuai A4 landscape
+    let imgHeight = canvas.height * imgWidth / canvas.width;
+    pdf.addImage(imgData, 'PNG', 10, 15, imgWidth, imgHeight);
+    pdf.save("peta.pdf");
+}
 </script>
 
 </body>
 </html>
-
