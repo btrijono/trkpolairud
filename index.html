@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive Map Julong</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+    <style>
+        #map {
+            height: 1100px;
+        }
+        #coordinates-form {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            z-index: 1000;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+        #coordinates-form input {
+            width: 180px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="coordinates-form">
+    <form id="search-form" method="POST">
+        <label for="coordinates">Koordinat (Latitude, Longitude):</label>
+        <input type="text" id="coordinates" name="coordinates" placeholder="Contoh: -0.7893, 113.9213" required>
+        <button type="submit">Cari Lokasi</button>
+    </form>
+</div>
+
+<div id="map"></div>
+
+<script>
+    // Inisialisasi peta tanpa marker awal
+    var map = L.map('map').setView([-0.7893, 113.9213], 8);
+    
+    // Google Satellite Tile Layer
+    var googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        attribution: 'Map data &copy; <a href="https://www.google.com/maps">Google Maps</a>'
+    });
+    // OpenStreetMap Tile Layer
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; OpenStreetMap contributors'
+    });    
+    // OpenStreetMap Tile Layer
+    var jlg =L.tileLayer('http://gis.julongindonesia.com:8082/jlg2023/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    var baseMaps = {
+        "Google Satellite": googleSat,
+        "OpenStreetMap": osm,
+		"Julong Map": jlg
+    };
+    
+    var overlayMaps = {};
+
+    // Load Shapefile using shp.js
+    shp("LICENSESHP/background/jlg_planted.zip").then(function (geojson) {
+    var shpLayer = L.geoJSON(geojson, {
+        style: function (feature) {
+            return {
+                color: "#008000", // Warna garis tepi (outline) hijau
+                weight: 2,        // Ketebalan garis
+                fillColor: "#00FF00", // Warna isi hijau terang
+                fillOpacity: 0.2  // Transparansi warna isi
+            };
+        },
+        onEachFeature: function (feature, layer) {
+            if (feature.properties) {
+                layer.bindPopup(Object.keys(feature.properties).map(function (k) {
+                    return k + ": " + feature.properties[k];
+                }).join("<br />"));
+            }
+        }
+    }).addTo(map);
+    
+    overlayMaps["Planted"] = shpLayer;
+    map.fitBounds(shpLayer.getBounds());
+
+    L.control.layers(baseMaps, overlayMaps).addTo(map);
+}).catch(function (error) {
+    console.error("Error loading Shapefile:", error);
+    alert("Failed to load Shapefile.");
+});
+
+    // Handle coordinate search
+    var userMarker = null;
+    document.getElementById("search-form").addEventListener("submit", function (event) {
+        event.preventDefault();
+
+        var input = document.getElementById("coordinates").value.trim();
+        var regex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
+        if (!regex.test(input)) {
+            alert("Format tidak valid! Gunakan format: Latitude, Longitude (contoh: -0.7893, 113.9213)");
+            return;
+        }
+
+        var coords = input.split(",").map(c => parseFloat(c.trim()));
+        var lat = coords[0], lon = coords[1];
+
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            alert("Koordinat tidak valid! Latitude harus antara -90 sampai 90, dan Longitude antara -180 sampai 180.");
+            return;
+        }
+
+        // Zoom ke lokasi pencarian
+        map.setView([lat, lon], 16);
+
+        // Hapus marker sebelumnya jika ada
+        if (userMarker) {
+            map.removeLayer(userMarker);
+        }
+
+        // Tambahkan marker baru
+        userMarker = L.marker([lat, lon]).addTo(map);
+        userMarker.bindPopup(`Searched Location:<br>Latitude: ${lat}<br>Longitude: ${lon}`).openPopup();
+    });
+</script>
+
+<?php
+// Handle POST request untuk pencarian koordinat via PHP
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['coordinates'])) {
+    $coordinates = $_POST['coordinates'];
+    $coords = explode(',', $coordinates);
+    
+    if (count($coords) == 2) {
+        $latitude = trim($coords[0]);
+        $longitude = trim($coords[1]);
+
+        if (is_numeric($latitude) && is_numeric($longitude)) {
+            echo "<script>";
+            echo "var userMarker = L.marker([$latitude, $longitude]).addTo(map);\n";
+            echo "userMarker.bindPopup('Searched Location: Latitude $latitude, Longitude $longitude');\n";
+            echo "</script>";
+        } else {
+            echo "<script>alert('Koordinat tidak valid!');</script>";
+        }
+    } else {
+        echo "<script>alert('Format koordinat salah!');</script>";
+    }
+}
+?>
+</body>
+</html>
