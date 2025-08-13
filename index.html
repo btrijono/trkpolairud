@@ -55,11 +55,10 @@
         maxZoom: 20
     });    
     
-    // Julong Map Tile Layer
-    var jlg = L.tileLayer('https://gis.julongindonesia.com:8082/jlg2023/{z}/{x}/{y}.png', {
-        attribution: 'Map data &copy; Julong Indonesia',
-        maxZoom: 20
-    }).addTo(map);
+// Ganti layer Julong dengan ini jika error:
+var jlg = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data © OpenStreetMap'
+}).addTo(map);
     
     var baseMaps = {
         "Google Satellite": googleSat,
