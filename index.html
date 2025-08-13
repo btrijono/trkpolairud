@@ -42,9 +42,19 @@
             border-radius: 3px;
             cursor: pointer;
         }
+        /* Style untuk layer control */
         .leaflet-control-layers {
-            margin-right: 10px !important;
-            margin-top: 10px !important;
+            border: 2px solid rgba(0,0,0,0.2);
+            background-clip: padding-box;
+        }
+        .leaflet-control-layers-toggle {
+            background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/layers.png);
+            width: 36px;
+            height: 36px;
+        }
+        .leaflet-retina .leaflet-control-layers-toggle {
+            background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/layers-2x.png);
+            background-size: 26px 26px;
         }
     </style>
 </head>
@@ -106,7 +116,8 @@
                 "ESRI Satellite": esriSatellite
             };
             
-            L.control.layers(baseLayers, null, {
+            // Tambahkan layer control dengan collapsed true
+            var layerControl = L.control.layers(baseLayers, null, {
                 position: 'topright',
                 collapsed: true
             }).addTo(map);
@@ -145,6 +156,11 @@
                 // Tambahkan marker baru
                 userMarker = L.marker([lat, lon]).addTo(map);
                 userMarker.bindPopup(`Lokasi Pencarian:<br>Latitude: ${lat}<br>Longitude: ${lon}`).openPopup();
+            });
+            
+            // Untuk debugging
+            map.on('baselayerchange', function(event) {
+                console.log('Layer aktif:', event.name);
             });
         });
     </script>
