@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Interactive Map Julong - Lengkap</title>
+<title>KAWASAN KALTARA</title>
 
 <!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -150,13 +150,16 @@
     "OpenStreetMap" : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
     }),
-    "OpenStreetMap2" : L.tileLayer('https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga', {
+    "Google Road" : L.tileLayer('https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga', {
       maxZoom: 20, attribution: '&copy; OpenStreetMap contributors'
     }),
-    "OpenStreetMap3" : L.tileLayer('https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga', {
+    "Google Sattelite" : L.tileLayer('https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga', {
       maxZoom: 20, attribution: '&copy; OpenStreetMap contributors'
     }),
-     "OpenStreetMap4" : L.tileLayer('https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+     "Google Hybrid" : L.tileLayer('https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      maxZoom: 20, attribution: '&copy; OpenStreetMap contributors'
+    }),
+     "Google Terrain" : L.tileLayer('https://mt0.google.com/vt/lyrs=t&hl=en&x={x}&y={y}&z={z}', {
       maxZoom: 20, attribution: '&copy; OpenStreetMap contributors'
     }),
     "Esri World Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
